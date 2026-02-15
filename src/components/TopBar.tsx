@@ -5,46 +5,117 @@ import DialogActions from "@mui/material/DialogActions";
 import DialogContent from "@mui/material/DialogContent";
 import DialogContentText from "@mui/material/DialogContentText";
 import DialogTitle from "@mui/material/DialogTitle";
+import IconButton from "@mui/material/IconButton";
+import ListItemText from "@mui/material/ListItemText";
+import Menu from "@mui/material/Menu";
+import MenuItem from "@mui/material/MenuItem";
 import { useState } from "react";
+import type { ColorMode } from "../theme";
+
+function MenuIcon() {
+  return (
+    <svg
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden="true"
+    >
+      <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z" />
+    </svg>
+  );
+}
 
 interface TopBarProps {
+  colorMode: ColorMode;
+  onColorModeChange: (mode: ColorMode) => void;
   hasTransactions: boolean;
   onReset: () => void;
   onExport: () => void;
 }
 
-export function TopBar({ hasTransactions, onReset, onExport }: TopBarProps) {
+export function TopBar({
+  colorMode,
+  onColorModeChange,
+  hasTransactions,
+  onReset,
+  onExport,
+}: TopBarProps) {
+  const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [resetOpen, setResetOpen] = useState(false);
 
-  const handleResetClick = () => setResetOpen(true);
+  const menuOpen = Boolean(menuAnchor);
+
+  const handleMenuOpen = (e: React.MouseEvent<HTMLElement>) => {
+    setMenuAnchor(e.currentTarget);
+  };
+  const handleMenuClose = () => setMenuAnchor(null);
+
+  const handleResetClick = () => {
+    handleMenuClose();
+    setResetOpen(true);
+  };
   const handleResetConfirm = () => {
     onReset();
     setResetOpen(false);
   };
   const handleResetCancel = () => setResetOpen(false);
 
+  const handleExportClick = () => {
+    handleMenuClose();
+    onExport();
+  };
+
+  const handleDarkModeClick = () => {
+    onColorModeChange(colorMode === "dark" ? "light" : "dark");
+    handleMenuClose();
+  };
+
   return (
     <>
       <Box
         sx={{
           display: "flex",
-          gap: 2,
           justifyContent: "flex-end",
-          flexWrap: "wrap",
+          alignItems: "center",
           py: 2,
         }}
       >
-        <Button variant="outlined" color="warning" onClick={handleResetClick}>
-          Reset
-        </Button>
-        <Button
-          variant="contained"
-          onClick={onExport}
+        <IconButton
+          id="app-menu-button"
+          onClick={handleMenuOpen}
+          aria-label="Open menu"
+          aria-controls={menuOpen ? "app-menu" : undefined}
+          aria-haspopup="true"
+          aria-expanded={menuOpen ? "true" : undefined}
+        >
+          <MenuIcon />
+        </IconButton>
+      </Box>
+      <Menu
+        id="app-menu"
+        anchorEl={menuAnchor}
+        open={menuOpen}
+        onClose={handleMenuClose}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+        transformOrigin={{ vertical: "top", horizontal: "right" }}
+        MenuListProps={{ "aria-labelledby": "app-menu-button" }}
+      >
+        <MenuItem onClick={handleResetClick}>
+          <ListItemText primary="Reset" />
+        </MenuItem>
+        <MenuItem
+          onClick={handleExportClick}
           disabled={!hasTransactions}
         >
-          Export
-        </Button>
-      </Box>
+          <ListItemText primary="Export" />
+        </MenuItem>
+        <MenuItem onClick={handleDarkModeClick}>
+          <ListItemText
+            primary={colorMode === "dark" ? "Light mode" : "Dark mode"}
+          />
+        </MenuItem>
+      </Menu>
       <Dialog open={resetOpen} onClose={handleResetCancel}>
         <DialogTitle>Reset</DialogTitle>
         <DialogContent>
@@ -57,7 +128,7 @@ export function TopBar({ hasTransactions, onReset, onExport }: TopBarProps) {
           <Button onClick={handleResetCancel}>Cancel</Button>
           <Button
             onClick={handleResetConfirm}
-            color="warning"
+            color="error"
             variant="contained"
           >
             Reset

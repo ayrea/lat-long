@@ -6,7 +6,9 @@ import { useCallback, useState } from "react";
 import { TopBar } from "./components/TopBar";
 import { CoordinateForm } from "./components/CoordinateForm";
 import { TransactionList } from "./components/TransactionList";
-import { appTheme } from "./theme";
+import { getAppTheme, type ColorMode } from "./theme";
+
+const COLOR_MODE_STORAGE_KEY = "lat-long-color-mode";
 import { DEFAULT_CRS_CODE, loadCrs } from "./crs";
 import { transformCoordinate } from "./transform";
 import { projectFromBearingDistance } from "./project";
@@ -30,11 +32,20 @@ function escapeCsvCell(value: string | number): string {
 }
 
 export default function App() {
+  const [colorMode, setColorMode] = useState<ColorMode>(() => {
+    const s = localStorage.getItem(COLOR_MODE_STORAGE_KEY);
+    return s === "dark" ? "dark" : "light";
+  });
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [formCrsCode, setFormCrsCode] = useState(DEFAULT_CRS_CODE);
   const [formX, setFormX] = useState("");
   const [formY, setFormY] = useState("");
   const [error, setError] = useState<string | null>(null);
+
+  const handleColorModeChange = useCallback((mode: ColorMode) => {
+    setColorMode(mode);
+    localStorage.setItem(COLOR_MODE_STORAGE_KEY, mode);
+  }, []);
 
   const lastTx = transactions.length > 0 ? transactions[transactions.length - 1] : null;
   const currentCrsCode = lastTx
@@ -167,7 +178,7 @@ export default function App() {
   }, [transactions]);
 
   return (
-    <ThemeProvider theme={appTheme}>
+    <ThemeProvider theme={getAppTheme(colorMode)}>
       <CssBaseline />
       <Box
         sx={{
@@ -181,6 +192,8 @@ export default function App() {
         }}
       >
         <TopBar
+          colorMode={colorMode}
+          onColorModeChange={handleColorModeChange}
           hasTransactions={transactions.length > 0}
           onReset={handleReset}
           onExport={handleExport}
