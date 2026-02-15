@@ -150,7 +150,7 @@ export function CoordinateForm({
             onChange={(_, newValue) => {
               if (newValue) onFormCrsChange(newValue.code);
             }}
-            ListboxComponent={VirtualizedListbox}
+            slots={{ listbox: VirtualizedListbox }}
             renderOption={(props, option) => (
               <li {...props}>
                 <Box
@@ -171,16 +171,18 @@ export function CoordinateForm({
               <TextField
                 {...params}
                 label="Coordinate reference system"
-                InputProps={{
-                  ...params.InputProps,
-                  endAdornment: (
-                    <>
-                      {crsLoading ? (
-                        <CircularProgress color="inherit" size={20} />
-                      ) : null}
-                      {params.InputProps.endAdornment}
-                    </>
-                  ),
+                slotProps={{
+                  input: {
+                    ...params.InputProps,
+                    endAdornment: (
+                      <>
+                        {crsLoading ? (
+                          <CircularProgress color="inherit" size={20} />
+                        ) : null}
+                        {params.InputProps.endAdornment}
+                      </>
+                    ),
+                  },
                 }}
               />
             )}
@@ -193,7 +195,7 @@ export function CoordinateForm({
               onChange={(e) => onFormXChange(e.target.value)}
               size="small"
               fullWidth
-              inputProps={{ step: "any" }}
+              slotProps={{ htmlInput: { step: "any" } }}
             />
             <TextField
               label={labels.second}
@@ -202,7 +204,7 @@ export function CoordinateForm({
               onChange={(e) => onFormYChange(e.target.value)}
               size="small"
               fullWidth
-              inputProps={{ step: "any" }}
+              slotProps={{ htmlInput: { step: "any" } }}
             />
           </Box>
         </>
@@ -277,7 +279,7 @@ export function CoordinateForm({
             onChange={(_, newValue) => {
               if (newValue) setTargetCrsCode(newValue.code);
             }}
-            ListboxComponent={VirtualizedListbox}
+            slots={{ listbox: VirtualizedListbox }}
             renderOption={(props, option) => (
               <li {...props}>
                 <Box
@@ -298,16 +300,18 @@ export function CoordinateForm({
               <TextField
                 {...params}
                 label="Target CRS"
-                InputProps={{
-                  ...params.InputProps,
-                  endAdornment: (
-                    <>
-                      {crsLoading ? (
-                        <CircularProgress color="inherit" size={20} />
-                      ) : null}
-                      {params.InputProps.endAdornment}
-                    </>
-                  ),
+                slotProps={{
+                  input: {
+                    ...params.InputProps,
+                    endAdornment: (
+                      <>
+                        {crsLoading ? (
+                          <CircularProgress color="inherit" size={20} />
+                        ) : null}
+                        {params.InputProps.endAdornment}
+                      </>
+                    ),
+                  },
                 }}
               />
             )}
@@ -342,7 +346,7 @@ export function CoordinateForm({
               value={bearing}
               onChange={(e) => setBearing(e.target.value)}
               size="small"
-              inputProps={{ step: "any", min: 0, max: 360 }}
+              slotProps={{ htmlInput: { step: "any", min: 0, max: 360 } }}
             />
             <TextField
               label="Distance"
@@ -350,7 +354,7 @@ export function CoordinateForm({
               value={distance}
               onChange={(e) => setDistance(e.target.value)}
               size="small"
-              inputProps={{ step: "any", min: 0 }}
+              slotProps={{ htmlInput: { step: "any", min: 0 } }}
             />
           </Box>
         </DialogContent>

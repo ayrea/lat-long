@@ -9,7 +9,7 @@ const LIST_HEIGHT = ROW_HEIGHT * VISIBLE_ROWS + 2 * LISTBOX_PADDING;
 type ListboxProps = React.HTMLAttributes<HTMLUListElement> & { children?: React.ReactNode };
 
 /**
- * Virtualized listbox for MUI Autocomplete. Use as ListboxComponent to avoid
+ * Virtualized listbox for MUI Autocomplete. Use as slots.listbox to avoid
  * rendering thousands of options at once.
  */
 export const VirtualizedListbox = React.forwardRef<HTMLUListElement, ListboxProps>(
