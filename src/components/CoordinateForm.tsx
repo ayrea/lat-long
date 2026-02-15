@@ -214,7 +214,7 @@ export function CoordinateForm({
 
       <Box sx={{ display: "flex", flexDirection: "column", gap: 2, pt: 1 }}>
         {hasTransactions && (
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" color="text.primary">
             Current: EPSG:{currentCrsCode} —{" "}
             {currentCoord != null
               ? `${currentCoord.x.toFixed(6)}, ${currentCoord.y.toFixed(6)}`
@@ -268,7 +268,7 @@ export function CoordinateForm({
           <Autocomplete<CRSOption>
             fullWidth
             size="small"
-            sx={{ mt: 1, minWidth: 280 }}
+            sx={{ mt: 1, minWidth: 480 }}
             options={targetOptions}
             value={targetCrsValue}
             loading={crsLoading}
@@ -336,7 +336,7 @@ export function CoordinateForm({
               flexDirection: "column",
               gap: 2,
               mt: 1,
-              minWidth: 280,
+              minWidth: 480,
             }}
           >
             <TextField
