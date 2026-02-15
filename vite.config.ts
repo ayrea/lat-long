@@ -4,6 +4,8 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
 export default defineConfig({
+  // GitHub Pages: set to '/REPO_NAME/' for project sites (e.g. .../lat-long/), or '/' for user/org site or custom domain
+  base: '/lat-long/',
   plugins: [
     react(),
     VitePWA({
