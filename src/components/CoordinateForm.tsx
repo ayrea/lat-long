@@ -11,7 +11,7 @@ import Snackbar from "@mui/material/Snackbar";
 import TextField from "@mui/material/TextField";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
-import { useState, useEffect, type ReactNode } from "react";
+import { useState, useEffect } from "react";
 import {
   getAllCrsList,
   DEFAULT_CRS_CODE,
@@ -21,8 +21,11 @@ import {
   isProjectedCrs,
 } from "../crs";
 import type { CRSOption } from "../crs";
+import { TransactionList } from "./TransactionList";
 import { VirtualizedListbox } from "./VirtualizedListbox";
 import type { Coord, CRSInfo, Transaction } from "../types";
+
+const FALLBACK_LABELS = { first: "X", second: "Y" } as const;
 
 interface CoordinateFormProps {
   transactions: Transaction[];
@@ -37,8 +40,9 @@ interface CoordinateFormProps {
   onTransform: (targetCrsCode: string) => void;
   onProject: (bearing: number, distance: number) => void;
   onDeleteLast: () => void;
-  children?: ReactNode;
 }
+
+export type AxisLabels = { first: string; second: string };
 
 function LocationIcon() {
   return (
@@ -77,7 +81,6 @@ export function CoordinateForm({
   onTransform,
   onProject,
   onDeleteLast,
-  children,
 }: CoordinateFormProps) {
   const [crsInfo, setCrsInfo] = useState<CRSInfo | null>(null);
   const [crsOptions, setCrsOptions] = useState<CRSOption[] | null>(null);
@@ -91,6 +94,9 @@ export function CoordinateForm({
   const [geoUnavailable, setGeoUnavailable] = useState(false);
   const [geoPermissionDenied, setGeoPermissionDenied] = useState(false);
   const [geoSbOpen, setGeoSbOpen] = useState(false);
+  const [crsLabelsByCode, setCrsLabelsByCode] = useState<
+    Record<string, AxisLabels>
+  >({});
 
   const hasTransactions = transactions.length > 0;
   const isWgs84Form =
@@ -158,7 +164,37 @@ export function CoordinateForm({
     loadCrs(crsCodeForActions).then(setCrsInfo);
   }, [crsCodeForActions]);
 
-  const labels = crsInfo ? getAxisLabels(crsInfo) : { first: "X", second: "Y" };
+  useEffect(() => {
+    const codes = new Set<string>();
+    for (const tx of transactions) {
+      codes.add(tx.sourceCrsCode);
+      if (tx.type === "transform") codes.add(tx.targetCrsCode);
+    }
+    if (codes.size === 0) {
+      setCrsLabelsByCode({});
+      return;
+    }
+    let cancelled = false;
+    Promise.all(
+      Array.from(codes).map(async (code) => {
+        const info = await loadCrs(code);
+        if (cancelled || !info) return [code, null] as const;
+        return [code, getAxisLabels(info)] as const;
+      })
+    ).then((entries) => {
+      if (cancelled) return;
+      const next: Record<string, AxisLabels> = {};
+      for (const [code, labels] of entries) {
+        if (labels) next[code] = labels;
+      }
+      setCrsLabelsByCode((prev) => ({ ...prev, ...next }));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [transactions]);
+
+  const labels = crsInfo ? getAxisLabels(crsInfo) : FALLBACK_LABELS;
   const canProject =
     crsInfo != null && isProjectedCrs(crsInfo) && coord != null;
 
@@ -306,14 +342,17 @@ export function CoordinateForm({
         </>
       ) : null}
 
-      {children}
+      <TransactionList
+        transactions={transactions}
+        crsLabelsByCode={crsLabelsByCode}
+      />
 
       <Box sx={{ display: "flex", flexDirection: "column", gap: 2, pt: 1 }}>
         {hasTransactions && (
           <Typography variant="body2" color="text.primary">
             Current: EPSG:{currentCrsCode} —{" "}
             {currentCoord != null
-              ? `${currentCoord.x.toFixed(6)}, ${currentCoord.y.toFixed(6)}`
+              ? `${labels.first} ${currentCoord.x.toFixed(6)}, ${labels.second} ${currentCoord.y.toFixed(6)}`
               : "—"}
           </Typography>
         )}

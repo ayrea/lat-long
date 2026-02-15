@@ -5,11 +5,10 @@ import { ThemeProvider } from "@mui/material";
 import { useCallback, useState } from "react";
 import { TopBar } from "./components/TopBar";
 import { CoordinateForm } from "./components/CoordinateForm";
-import { TransactionList } from "./components/TransactionList";
 import { getAppTheme, type ColorMode } from "./theme";
 
 const COLOR_MODE_STORAGE_KEY = "lat-long-color-mode";
-import { DEFAULT_CRS_CODE, loadCrs } from "./crs";
+import { DEFAULT_CRS_CODE, loadCrs, getAxisLabels } from "./crs";
 import { transformCoordinate } from "./transform";
 import { projectFromBearingDistance } from "./project";
 import type {
@@ -135,16 +134,41 @@ export default function App() {
     setError(null);
   }, []);
 
-  const handleExport = useCallback(() => {
+  const handleExport = useCallback(async () => {
+    let inputFirst = "Input X";
+    let inputSecond = "Input Y";
+    let outputFirst = "Output X";
+    let outputSecond = "Output Y";
+    if (transactions.length > 0) {
+      const first = transactions[0];
+      const [sourceCrs, targetCrs] = await Promise.all([
+        loadCrs(first.sourceCrsCode),
+        first.type === "transform"
+          ? loadCrs(first.targetCrsCode)
+          : Promise.resolve(null),
+      ]);
+      if (sourceCrs) {
+        const inputLabels = getAxisLabels(sourceCrs);
+        inputFirst = `Input ${inputLabels.first}`;
+        inputSecond = `Input ${inputLabels.second}`;
+      }
+      const outCrs =
+        first.type === "transform" && targetCrs ? targetCrs : sourceCrs;
+      if (outCrs) {
+        const outputLabels = getAxisLabels(outCrs);
+        outputFirst = `Output ${outputLabels.first}`;
+        outputSecond = `Output ${outputLabels.second}`;
+      }
+    }
     const headers = [
       "Index",
       "Type",
       "Source CRS",
       "Target CRS",
-      "Input X",
-      "Input Y",
-      "Output X",
-      "Output Y",
+      inputFirst,
+      inputSecond,
+      outputFirst,
+      outputSecond,
       "Bearing",
       "Distance",
     ];
@@ -216,9 +240,7 @@ export default function App() {
           onTransform={handleTransform}
           onProject={handleProject}
           onDeleteLast={handleDeleteLast}
-        >
-          <TransactionList transactions={transactions} />
-        </CoordinateForm>
+        />
       </Box>
     </ThemeProvider>
   );

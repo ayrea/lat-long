@@ -2,20 +2,32 @@ import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
 import Typography from "@mui/material/Typography";
 import type { Transaction } from "../types";
+import type { AxisLabels } from "./CoordinateForm";
 
 interface TransactionCardProps {
   transaction: Transaction;
   index: number;
+  inputAxisLabels?: AxisLabels;
+  outputAxisLabels?: AxisLabels;
 }
 
-function formatCoord(c: { x: number; y: number }): string {
-  return `${c.x.toFixed(6)}, ${c.y.toFixed(6)}`;
+function formatCoordWithLabels(
+  c: { x: number; y: number },
+  labels: AxisLabels
+): string {
+  return `${labels.first} ${c.x.toFixed(6)}, ${labels.second} ${c.y.toFixed(6)}`;
 }
+
+const FALLBACK_LABELS: AxisLabels = { first: "X", second: "Y" };
 
 export function TransactionCard({
   transaction,
   index,
+  inputAxisLabels,
+  outputAxisLabels,
 }: TransactionCardProps) {
+  const inputLabels = inputAxisLabels ?? FALLBACK_LABELS;
+  const outputLabels = outputAxisLabels ?? FALLBACK_LABELS;
   const title =
     transaction.type === "transform"
       ? `Transform to EPSG:${transaction.targetCrsCode}`
@@ -38,10 +50,10 @@ export function TransactionCard({
           {subtitle}
         </Typography>
         <Typography variant="body2" component="p">
-          Input: {formatCoord(transaction.inputCoord)}
+          Input: {formatCoordWithLabels(transaction.inputCoord, inputLabels)}
         </Typography>
         <Typography variant="body2" component="p">
-          Output: {formatCoord(transaction.outputCoord)}
+          Output: {formatCoordWithLabels(transaction.outputCoord, outputLabels)}
         </Typography>
       </CardContent>
     </Card>
