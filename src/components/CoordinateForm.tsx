@@ -151,6 +151,22 @@ export function CoordinateForm({
               if (newValue) onFormCrsChange(newValue.code);
             }}
             ListboxComponent={VirtualizedListbox}
+            renderOption={(props, option) => (
+              <li {...props}>
+                <Box
+                  component="span"
+                  sx={{
+                    whiteSpace: "normal",
+                    wordBreak: "break-word",
+                    display: "block",
+                    lineHeight: 1.4,
+                    py: 0.5,
+                  }}
+                >
+                  {option.label}
+                </Box>
+              </li>
+            )}
             renderInput={(params) => (
               <TextField
                 {...params}
@@ -262,6 +278,22 @@ export function CoordinateForm({
               if (newValue) setTargetCrsCode(newValue.code);
             }}
             ListboxComponent={VirtualizedListbox}
+            renderOption={(props, option) => (
+              <li {...props}>
+                <Box
+                  component="span"
+                  sx={{
+                    whiteSpace: "normal",
+                    wordBreak: "break-word",
+                    display: "block",
+                    lineHeight: 1.4,
+                    py: 0.5,
+                  }}
+                >
+                  {option.label}
+                </Box>
+              </li>
+            )}
             renderInput={(params) => (
               <TextField
                 {...params}

@@ -2,7 +2,7 @@ import { FixedSizeList as List } from "react-window";
 import React from "react";
 
 const LISTBOX_PADDING = 8;
-const ROW_HEIGHT = 36;
+const ROW_HEIGHT = 52;
 const VISIBLE_ROWS = 8;
 const LIST_HEIGHT = ROW_HEIGHT * VISIBLE_ROWS + 2 * LISTBOX_PADDING;
 
