@@ -6,7 +6,10 @@ import Dialog from "@mui/material/Dialog";
 import DialogActions from "@mui/material/DialogActions";
 import DialogContent from "@mui/material/DialogContent";
 import DialogTitle from "@mui/material/DialogTitle";
+import IconButton from "@mui/material/IconButton";
+import Snackbar from "@mui/material/Snackbar";
 import TextField from "@mui/material/TextField";
+import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
 import { useState, useEffect, type ReactNode } from "react";
 import {
@@ -35,6 +38,20 @@ interface CoordinateFormProps {
   onProject: (bearing: number, distance: number) => void;
   onDeleteLast: () => void;
   children?: ReactNode;
+}
+
+function LocationIcon() {
+  return (
+    <svg
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden="true"
+    >
+      <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
+    </svg>
+  );
 }
 
 function optionForCode(code: string, options: CRSOption[]): CRSOption {
@@ -70,8 +87,54 @@ export function CoordinateForm({
   const [projectDialogOpen, setProjectDialogOpen] = useState(false);
   const [bearing, setBearing] = useState("");
   const [distance, setDistance] = useState("");
+  const [geoLoading, setGeoLoading] = useState(false);
+  const [geoUnavailable, setGeoUnavailable] = useState(false);
+  const [geoPermissionDenied, setGeoPermissionDenied] = useState(false);
+  const [geoSbOpen, setGeoSbOpen] = useState(false);
 
   const hasTransactions = transactions.length > 0;
+  const isWgs84Form =
+    !hasTransactions && formCrsCode === DEFAULT_CRS_CODE;
+  const geoAvailable =
+    typeof navigator !== "undefined" && !!navigator.geolocation;
+  const geoButtonDisabled =
+    !geoAvailable ||
+    geoUnavailable ||
+    geoLoading ||
+    geoPermissionDenied;
+
+  useEffect(() => {
+    if (!isWgs84Form || !geoAvailable) return;
+    const permissions =
+      typeof navigator !== "undefined" &&
+      "permissions" in navigator &&
+      (navigator as { permissions?: { query: (p: { name: string }) => Promise<{ state: string }> } }).permissions;
+    if (!permissions) return;
+    permissions
+      .query({ name: "geolocation" })
+      .then((result) => {
+        if (result.state === "denied") setGeoPermissionDenied(true);
+      })
+      .catch(() => { });
+  }, [isWgs84Form, geoAvailable]);
+
+  const handleUseCurrentPosition = () => {
+    if (!navigator.geolocation || geoButtonDisabled) return;
+    setGeoLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        onFormXChange(String(position.coords.longitude));
+        onFormYChange(String(position.coords.latitude));
+        setGeoLoading(false);
+      },
+      () => {
+        setGeoUnavailable(true);
+        setGeoLoading(false);
+        setGeoSbOpen(true);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  };
   const coord = hasTransactions
     ? currentCoord
     : (() => {
@@ -187,7 +250,14 @@ export function CoordinateForm({
               />
             )}
           />
-          <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
+          <Box
+            sx={{
+              display: "flex",
+              gap: 2,
+              flexWrap: "wrap",
+              alignItems: "center",
+            }}
+          >
             <TextField
               label={labels.first}
               type="number"
@@ -206,6 +276,32 @@ export function CoordinateForm({
               fullWidth
               slotProps={{ htmlInput: { step: "any" } }}
             />
+            {isWgs84Form && (
+              <Tooltip
+                title={
+                  geoPermissionDenied
+                    ? "Location services must be enabled for this site to use this feature"
+                    : "Use current location"
+                }
+              >
+                <span>
+                  <IconButton
+                    color="primary"
+                    onClick={handleUseCurrentPosition}
+                    disabled={geoButtonDisabled}
+                    aria-label="Use current location"
+                    size="small"
+                    sx={{ flexShrink: 0 }}
+                  >
+                    {geoLoading ? (
+                      <CircularProgress color="inherit" size={24} />
+                    ) : (
+                      <LocationIcon />
+                    )}
+                  </IconButton>
+                </span>
+              </Tooltip>
+            )}
           </Box>
         </>
       ) : null}
@@ -268,7 +364,7 @@ export function CoordinateForm({
           <Autocomplete<CRSOption>
             fullWidth
             size="small"
-            sx={{ mt: 1, minWidth: 480 }}
+            sx={{ mt: 1, minWidth: 280 }}
             options={targetOptions}
             value={targetCrsValue}
             loading={crsLoading}
@@ -336,7 +432,7 @@ export function CoordinateForm({
               flexDirection: "column",
               gap: 2,
               mt: 1,
-              minWidth: 480,
+              minWidth: 280,
             }}
           >
             <TextField
@@ -368,6 +464,13 @@ export function CoordinateForm({
           </Button>
         </DialogActions>
       </Dialog>
+
+      <Snackbar
+        open={geoSbOpen}
+        autoHideDuration={6000}
+        onClose={() => setGeoSbOpen(false)}
+        message="Could not get location"
+      />
     </Box>
   );
 }
