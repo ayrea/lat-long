@@ -26,7 +26,7 @@ export function TransactionCard({
       : `From EPSG:${transaction.sourceCrsCode} (bearing ${transaction.bearing}°, distance ${transaction.distance})`;
 
   return (
-    <Card variant="outlined" sx={{ minWidth: 280 }}>
+    <Card variant="outlined" sx={{ minWidth: 280, bgcolor: "grey.100" }}>
       <CardContent>
         <Typography variant="subtitle2" color="text.secondary">
           #{index + 1}

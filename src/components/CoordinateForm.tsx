@@ -239,7 +239,6 @@ export function CoordinateForm({
           {canProject && (
             <Button
               variant="contained"
-              color="secondary"
               onClick={handleOpenProject}
             >
               Project
