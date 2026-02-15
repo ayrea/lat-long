@@ -21,6 +21,7 @@ import {
   isProjectedCrs,
 } from "../crs";
 import type { CRSOption } from "../crs";
+import { CoordinateCard } from "./CoordinateCard";
 import { TransactionList } from "./TransactionList";
 import { VirtualizedListbox } from "./VirtualizedListbox";
 import type { Coord, CRSInfo, Transaction } from "../types";
@@ -348,13 +349,13 @@ export function CoordinateForm({
       />
 
       <Box sx={{ display: "flex", flexDirection: "column", gap: 2, pt: 1 }}>
-        {hasTransactions && (
-          <Typography variant="body2" color="text.primary">
-            Current: EPSG:{currentCrsCode} —{" "}
-            {currentCoord != null
-              ? `${labels.first} ${currentCoord.x.toFixed(6)}, ${labels.second} ${currentCoord.y.toFixed(6)}`
-              : "—"}
-          </Typography>
+        {hasTransactions && currentCoord != null && (
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+            <Typography variant="caption" color="text.secondary">
+              Current (EPSG:{currentCrsCode})
+            </Typography>
+            <CoordinateCard coord={currentCoord} axisLabels={labels} />
+          </Box>
         )}
         <Box
           sx={{

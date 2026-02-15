@@ -1,21 +1,16 @@
+import Box from "@mui/material/Box";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
 import Typography from "@mui/material/Typography";
 import type { Transaction } from "../types";
 import type { AxisLabels } from "./CoordinateForm";
+import { CoordinateCard } from "./CoordinateCard";
 
 interface TransactionCardProps {
   transaction: Transaction;
   index: number;
   inputAxisLabels?: AxisLabels;
   outputAxisLabels?: AxisLabels;
-}
-
-function formatCoordWithLabels(
-  c: { x: number; y: number },
-  labels: AxisLabels
-): string {
-  return `${labels.first} ${c.x.toFixed(6)}, ${labels.second} ${c.y.toFixed(6)}`;
 }
 
 const FALLBACK_LABELS: AxisLabels = { first: "X", second: "Y" };
@@ -49,12 +44,26 @@ export function TransactionCard({
         <Typography variant="body2" color="text.secondary" gutterBottom>
           {subtitle}
         </Typography>
-        <Typography variant="body2" component="p">
-          Input: {formatCoordWithLabels(transaction.inputCoord, inputLabels)}
-        </Typography>
-        <Typography variant="body2" component="p">
-          Output: {formatCoordWithLabels(transaction.outputCoord, outputLabels)}
-        </Typography>
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+            <Typography variant="caption" color="text.secondary">
+              Input
+            </Typography>
+            <CoordinateCard
+              coord={transaction.inputCoord}
+              axisLabels={inputLabels}
+            />
+          </Box>
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+            <Typography variant="caption" color="text.secondary">
+              Output
+            </Typography>
+            <CoordinateCard
+              coord={transaction.outputCoord}
+              axisLabels={outputLabels}
+            />
+          </Box>
+        </Box>
       </CardContent>
     </Card>
   );
