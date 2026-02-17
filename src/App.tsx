@@ -6,17 +6,12 @@ import { useCallback, useState } from "react";
 import { TopBar } from "./components/TopBar";
 import { CoordinateForm } from "./components/CoordinateForm";
 import { getAppTheme, type ColorMode } from "./theme";
-
-const COLOR_MODE_STORAGE_KEY = "lat-long-color-mode";
-import { DEFAULT_CRS_CODE, loadCrs, getAxisLabels } from "./crs";
+import { loadCrs, setStoredDefaultCrs } from "./crs";
 import { transformCoordinate } from "./transform";
 import { projectFromBearingDistance } from "./project";
-import type {
-  Transaction,
-  TransformTransaction,
-  ProjectTransaction,
-  Coord,
-} from "./types";
+import type { Coordinate } from "./types";
+
+const COLOR_MODE_STORAGE_KEY = "lat-long-color-mode";
 
 function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -30,44 +25,79 @@ function escapeCsvCell(value: string | number): string {
   return s;
 }
 
+/** Return a name unique among existingNames; if baseName is taken, append _2, _3, etc. */
+function deriveUniqueName(existingNames: Set<string>, baseName: string): string {
+  let candidate = baseName.trim() || "1";
+  let n = 1;
+  while (existingNames.has(candidate)) {
+    n += 1;
+    candidate = `${baseName.trim() || "1"}_${n}`;
+  }
+  return candidate;
+}
+
+/** Next default name for manual add: "1", "2", ... from existing numeric-style names. */
+function getNextNumericName(coordinates: Coordinate[]): string {
+  const existing = new Set(coordinates.map((c) => c.name));
+  let n = 0;
+  for (const c of coordinates) {
+    const parsed = /^\d+$/.test(c.name) ? parseInt(c.name, 10) : NaN;
+    if (Number.isFinite(parsed) && parsed > n) n = parsed;
+  }
+  return deriveUniqueName(existing, String(n + 1));
+}
+
 export default function App() {
   const [colorMode, setColorMode] = useState<ColorMode>(() => {
     const s = localStorage.getItem(COLOR_MODE_STORAGE_KEY);
-    return s === "dark" ? "dark" : "light";
+    return s === "light" ? "light" : "dark";
   });
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [formCrsCode, setFormCrsCode] = useState(DEFAULT_CRS_CODE);
-  const [formX, setFormX] = useState("");
-  const [formY, setFormY] = useState("");
+  const [coordinates, setCoordinates] = useState<Coordinate[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
 
   const handleColorModeChange = useCallback((mode: ColorMode) => {
     setColorMode(mode);
     localStorage.setItem(COLOR_MODE_STORAGE_KEY, mode);
   }, []);
 
-  const lastTx = transactions.length > 0 ? transactions[transactions.length - 1] : null;
-  const currentCrsCode = lastTx
-    ? lastTx.type === "transform"
-      ? lastTx.targetCrsCode
-      : lastTx.sourceCrsCode
-    : formCrsCode;
-  const currentCoord: Coord | null = lastTx
-    ? lastTx.outputCoord
-    : (() => {
-      const x = parseFloat(formX);
-      const y = parseFloat(formY);
-      if (Number.isFinite(x) && Number.isFinite(y)) return { x, y };
-      return null;
-    })();
+  const handleAddCoordinate = useCallback(
+    (payload: {
+      crsCode: string;
+      x: number;
+      y: number;
+      nameOverride?: string;
+    }) => {
+      const existing = new Set(coordinates.map((c) => c.name));
+      const name =
+        payload.nameOverride !== undefined
+          ? deriveUniqueName(existing, payload.nameOverride)
+          : getNextNumericName(coordinates);
+      setStoredDefaultCrs(payload.crsCode);
+      setCoordinates((prev) => [
+        ...prev,
+        {
+          id: generateId(),
+          name,
+          crsCode: payload.crsCode,
+          x: payload.x,
+          y: payload.y,
+        },
+      ]);
+    },
+    [coordinates]
+  );
 
   const handleTransform = useCallback(
-    async (targetCrsCode: string) => {
+    async (coordinateId: string, targetCrsCode: string) => {
       setError(null);
-      if (currentCoord == null) return;
+      const source = coordinates.find((c) => c.id === coordinateId);
+      if (!source) return;
       try {
-        const sourceCrs = await loadCrs(currentCrsCode);
-        const targetCrs = await loadCrs(targetCrsCode);
+        const [sourceCrs, targetCrs] = await Promise.all([
+          loadCrs(source.crsCode),
+          loadCrs(targetCrsCode),
+        ]);
         if (!sourceCrs || !targetCrs) {
           setError("Could not load CRS definitions.");
           return;
@@ -75,119 +105,103 @@ export default function App() {
         const [outX, outY] = transformCoordinate(
           sourceCrs.proj4,
           targetCrs.proj4,
-          currentCoord.x,
-          currentCoord.y
+          source.x,
+          source.y
         );
-        const tx: TransformTransaction = {
-          id: generateId(),
-          type: "transform",
-          sourceCrsCode: currentCrsCode,
-          targetCrsCode,
-          inputCoord: { ...currentCoord },
-          outputCoord: { x: outX, y: outY },
-        };
-        setTransactions((prev) => [...prev, tx]);
+        const existing = new Set(coordinates.map((c) => c.name));
+        const newName = deriveUniqueName(
+          existing,
+          `${source.name}_Transform`
+        );
+        setCoordinates((prev) => [
+          ...prev,
+          {
+            id: generateId(),
+            name: newName,
+            crsCode: targetCrsCode,
+            x: outX,
+            y: outY,
+          },
+        ]);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Transform failed.");
       }
     },
-    [currentCrsCode, currentCoord]
+    [coordinates]
   );
 
   const handleProject = useCallback(
-    (bearing: number, distance: number) => {
+    (coordinateId: string, bearing: number, distance: number) => {
       setError(null);
-      if (currentCoord == null) return;
+      const source = coordinates.find((c) => c.id === coordinateId);
+      if (!source) return;
       try {
         const { easting, northing } = projectFromBearingDistance(
-          currentCoord.x,
-          currentCoord.y,
+          source.x,
+          source.y,
           bearing,
           distance
         );
-        const tx: ProjectTransaction = {
-          id: generateId(),
-          type: "project",
-          sourceCrsCode: currentCrsCode,
-          inputCoord: { ...currentCoord },
-          outputCoord: { x: easting, y: northing },
-          bearing,
-          distance,
-        };
-        setTransactions((prev) => [...prev, tx]);
+        const existing = new Set(coordinates.map((c) => c.name));
+        const newName = deriveUniqueName(existing, `${source.name}_Project`);
+        setCoordinates((prev) => [
+          ...prev,
+          {
+            id: generateId(),
+            name: newName,
+            crsCode: source.crsCode,
+            x: easting,
+            y: northing,
+          },
+        ]);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Project failed.");
       }
     },
-    [currentCrsCode, currentCoord]
+    [coordinates]
   );
 
-  const handleDeleteLast = useCallback(() => {
-    setTransactions((prev) => (prev.length > 0 ? prev.slice(0, -1) : prev));
+  const handleRename = useCallback(
+    (coordinateId: string, newName: string) => {
+      const unique = deriveUniqueName(
+        new Set(coordinates.map((c) => (c.id === coordinateId ? "" : c.name))),
+        newName.trim()
+      );
+      setCoordinates((prev) =>
+        prev.map((c) =>
+          c.id === coordinateId ? { ...c, name: unique } : c
+        )
+      );
+    },
+    [coordinates]
+  );
+
+  const handleDelete = useCallback((coordinateId: string) => {
+    setCoordinates((prev) => prev.filter((c) => c.id !== coordinateId));
   }, []);
 
   const handleReset = useCallback(() => {
-    setTransactions([]);
-    setFormCrsCode(DEFAULT_CRS_CODE);
-    setFormX("");
-    setFormY("");
+    setCoordinates([]);
     setError(null);
   }, []);
 
   const handleExport = useCallback(async () => {
-    let inputFirst = "Input X";
-    let inputSecond = "Input Y";
-    let outputFirst = "Output X";
-    let outputSecond = "Output Y";
-    if (transactions.length > 0) {
-      const first = transactions[0];
-      const [sourceCrs, targetCrs] = await Promise.all([
-        loadCrs(first.sourceCrsCode),
-        first.type === "transform"
-          ? loadCrs(first.targetCrsCode)
-          : Promise.resolve(null),
-      ]);
-      if (sourceCrs) {
-        const inputLabels = getAxisLabels(sourceCrs);
-        inputFirst = `Input ${inputLabels.first}`;
-        inputSecond = `Input ${inputLabels.second}`;
-      }
-      const outCrs =
-        first.type === "transform" && targetCrs ? targetCrs : sourceCrs;
-      if (outCrs) {
-        const outputLabels = getAxisLabels(outCrs);
-        outputFirst = `Output ${outputLabels.first}`;
-        outputSecond = `Output ${outputLabels.second}`;
-      }
-    }
-    const headers = [
-      "Index",
-      "Type",
-      "Source CRS",
-      "Target CRS",
-      inputFirst,
-      inputSecond,
-      outputFirst,
-      outputSecond,
-      "Bearing",
-      "Distance",
-    ];
-    const rows = transactions.map((tx, i) => {
-      const base = [
-        i + 1,
-        tx.type,
-        tx.sourceCrsCode,
-        tx.type === "transform" ? tx.targetCrsCode : "",
-        tx.inputCoord.x,
-        tx.inputCoord.y,
-        tx.outputCoord.x,
-        tx.outputCoord.y,
-      ];
-      if (tx.type === "project") {
-        return [...base.slice(0, 4), ...base.slice(4, 8), tx.bearing, tx.distance];
-      }
-      return [...base, "", ""];
-    });
+    const codes = new Set(coordinates.map((c) => c.crsCode));
+    const crsNameByCode: Record<string, string> = {};
+    await Promise.all(
+      Array.from(codes).map(async (code) => {
+        const info = await loadCrs(code);
+        crsNameByCode[code] = info?.name ?? "";
+      })
+    );
+    const headers = ["Name", "CRS Code", "CRS Name", "X", "Y"];
+    const rows = coordinates.map((c) => [
+      c.name,
+      c.crsCode,
+      crsNameByCode[c.crsCode] ?? "",
+      c.x,
+      c.y,
+    ]);
     const csv =
       headers.map(escapeCsvCell).join(",") +
       "\n" +
@@ -199,7 +213,7 @@ export default function App() {
     a.download = `coordinates-export-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [transactions]);
+  }, [coordinates]);
 
   return (
     <ThemeProvider theme={getAppTheme(colorMode)}>
@@ -218,9 +232,10 @@ export default function App() {
         <TopBar
           colorMode={colorMode}
           onColorModeChange={handleColorModeChange}
-          hasTransactions={transactions.length > 0}
+          hasCoordinates={coordinates.length > 0}
           onReset={handleReset}
           onExport={handleExport}
+          onAddCoordinate={() => setAddDialogOpen(true)}
         />
         {error != null && (
           <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 2 }}>
@@ -228,18 +243,16 @@ export default function App() {
           </Alert>
         )}
         <CoordinateForm
-          transactions={transactions}
-          currentCrsCode={currentCrsCode}
-          currentCoord={currentCoord}
-          formCrsCode={formCrsCode}
-          formX={formX}
-          formY={formY}
-          onFormCrsChange={setFormCrsCode}
-          onFormXChange={setFormX}
-          onFormYChange={setFormY}
+          coordinates={coordinates}
+          nextSuggestedName={getNextNumericName(coordinates)}
+          addDialogOpen={addDialogOpen}
+          onAddDialogOpen={() => setAddDialogOpen(true)}
+          onAddDialogClose={() => setAddDialogOpen(false)}
+          onAddCoordinate={handleAddCoordinate}
           onTransform={handleTransform}
           onProject={handleProject}
-          onDeleteLast={handleDeleteLast}
+          onRename={handleRename}
+          onDelete={handleDelete}
         />
       </Box>
     </ThemeProvider>

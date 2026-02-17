@@ -29,17 +29,19 @@ function MenuIcon() {
 interface TopBarProps {
   colorMode: ColorMode;
   onColorModeChange: (mode: ColorMode) => void;
-  hasTransactions: boolean;
+  hasCoordinates: boolean;
   onReset: () => void;
   onExport: () => void;
+  onAddCoordinate: () => void;
 }
 
 export function TopBar({
   colorMode,
   onColorModeChange,
-  hasTransactions,
+  hasCoordinates,
   onReset,
   onExport,
+  onAddCoordinate,
 }: TopBarProps) {
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [resetOpen, setResetOpen] = useState(false);
@@ -76,11 +78,19 @@ export function TopBar({
       <Box
         sx={{
           display: "flex",
-          justifyContent: "flex-end",
+          justifyContent: "space-between",
           alignItems: "center",
           py: 2,
+          width: "100%",
         }}
       >
+        {hasCoordinates ? (
+          <Button variant="outlined" onClick={onAddCoordinate}>
+            Add coordinate
+          </Button>
+        ) : (
+          <Box />
+        )}
         <IconButton
           id="app-menu-button"
           onClick={handleMenuOpen}
@@ -106,7 +116,7 @@ export function TopBar({
         </MenuItem>
         <MenuItem
           onClick={handleExportClick}
-          disabled={!hasTransactions}
+          disabled={!hasCoordinates}
         >
           <ListItemText primary="Export" />
         </MenuItem>
@@ -120,7 +130,7 @@ export function TopBar({
         <DialogTitle>Reset</DialogTitle>
         <DialogContent>
           <DialogContentText>
-            Are you sure? This will clear all transactions and reset the
+            Are you sure? This will clear all coordinates and reset the
             application to the starting state.
           </DialogContentText>
         </DialogContent>

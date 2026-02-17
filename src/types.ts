@@ -1,30 +1,21 @@
-export type TransactionType = "transform" | "project";
-
 export interface Coord {
   x: number;
   y: number;
 }
 
-export interface TransactionBase {
+/** A single coordinate entry managed by the app. */
+export interface Coordinate {
+  /** Stable identifier for React keys and lookups. */
   id: string;
-  type: TransactionType;
-  sourceCrsCode: string;
-  inputCoord: Coord;
-  outputCoord: Coord;
+  /** User-visible unique name, e.g. "1", "PointA", "Point1_Transform". */
+  name: string;
+  /** EPSG code for the CRS, e.g. "4326". */
+  crsCode: string;
+  /** X / longitude / easting value (depends on CRS). */
+  x: number;
+  /** Y / latitude / northing value (depends on CRS). */
+  y: number;
 }
-
-export interface TransformTransaction extends TransactionBase {
-  type: "transform";
-  targetCrsCode: string;
-}
-
-export interface ProjectTransaction extends TransactionBase {
-  type: "project";
-  bearing: number;
-  distance: number;
-}
-
-export type Transaction = TransformTransaction | ProjectTransaction;
 
 export interface CRSInfo {
   code: string;

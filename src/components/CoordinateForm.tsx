@@ -19,31 +19,36 @@ import {
   loadCrs,
   getAxisLabels,
   isProjectedCrs,
+  getStoredDefaultCrs,
+  setStoredDefaultCrs,
 } from "../crs";
 import type { CRSOption } from "../crs";
-import { CoordinateCard } from "./CoordinateCard";
-import { TransactionList } from "./TransactionList";
+import { CoordinateList } from "./CoordinateList";
 import { VirtualizedListbox } from "./VirtualizedListbox";
-import type { Coord, CRSInfo, Transaction } from "../types";
+import type { Coordinate } from "../types";
 
 const FALLBACK_LABELS = { first: "X", second: "Y" } as const;
 
-interface CoordinateFormProps {
-  transactions: Transaction[];
-  currentCrsCode: string;
-  currentCoord: Coord | null;
-  formCrsCode: string;
-  formX: string;
-  formY: string;
-  onFormCrsChange: (code: string) => void;
-  onFormXChange: (value: string) => void;
-  onFormYChange: (value: string) => void;
-  onTransform: (targetCrsCode: string) => void;
-  onProject: (bearing: number, distance: number) => void;
-  onDeleteLast: () => void;
-}
-
 export type AxisLabels = { first: string; second: string };
+
+interface CoordinateFormProps {
+  coordinates: Coordinate[];
+  /** Default name shown when adding a new coordinate (e.g. "1", "2"). */
+  nextSuggestedName: string;
+  addDialogOpen: boolean;
+  onAddDialogOpen: () => void;
+  onAddDialogClose: () => void;
+  onAddCoordinate: (payload: {
+    crsCode: string;
+    x: number;
+    y: number;
+    nameOverride?: string;
+  }) => void;
+  onTransform: (coordinateId: string, targetCrsCode: string) => void;
+  onProject: (coordinateId: string, bearing: number, distance: number) => void;
+  onRename: (coordinateId: string, newName: string) => void;
+  onDelete: (coordinateId: string) => void;
+}
 
 function LocationIcon() {
   return (
@@ -70,38 +75,63 @@ function optionForCode(code: string, options: CRSOption[]): CRSOption {
 }
 
 export function CoordinateForm({
-  transactions,
-  currentCrsCode,
-  currentCoord,
-  formCrsCode,
-  formX,
-  formY,
-  onFormCrsChange,
-  onFormXChange,
-  onFormYChange,
+  coordinates,
+  nextSuggestedName,
+  addDialogOpen,
+  onAddDialogOpen,
+  onAddDialogClose,
+  onAddCoordinate,
   onTransform,
   onProject,
-  onDeleteLast,
+  onRename,
+  onDelete,
 }: CoordinateFormProps) {
-  const [crsInfo, setCrsInfo] = useState<CRSInfo | null>(null);
   const [crsOptions, setCrsOptions] = useState<CRSOption[] | null>(null);
   const [crsLoading, setCrsLoading] = useState(false);
+  const [crsLabelsByCode, setCrsLabelsByCode] = useState<
+    Record<string, AxisLabels>
+  >(() => ({
+    [DEFAULT_CRS_CODE]: { first: "Longitude", second: "Latitude" },
+  }));
+  const [crsNameByCode, setCrsNameByCode] = useState<Record<string, string>>(
+    () => ({})
+  );
+  const [projectableCrsCodes, setProjectableCrsCodes] = useState<Set<string>>(
+    () => new Set()
+  );
+
+  const [formCrsCode, setFormCrsCode] = useState(
+    () => getStoredDefaultCrs() || DEFAULT_CRS_CODE
+  );
+  const [formName, setFormName] = useState("");
+  const [formX, setFormX] = useState("");
+  const [formY, setFormY] = useState("");
+
   const [transformDialogOpen, setTransformDialogOpen] = useState(false);
+  const [transformCoordinateId, setTransformCoordinateId] = useState<
+    string | null
+  >(null);
   const [targetCrsCode, setTargetCrsCode] = useState(DEFAULT_CRS_CODE);
+
   const [projectDialogOpen, setProjectDialogOpen] = useState(false);
+  const [projectCoordinateId, setProjectCoordinateId] = useState<
+    string | null
+  >(null);
   const [bearing, setBearing] = useState("");
   const [distance, setDistance] = useState("");
+
+  const [renameDialogOpen, setRenameDialogOpen] = useState(false);
+  const [renameCoordinateId, setRenameCoordinateId] = useState<string | null>(
+    null
+  );
+  const [renameValue, setRenameValue] = useState("");
+
   const [geoLoading, setGeoLoading] = useState(false);
   const [geoUnavailable, setGeoUnavailable] = useState(false);
   const [geoPermissionDenied, setGeoPermissionDenied] = useState(false);
   const [geoSbOpen, setGeoSbOpen] = useState(false);
-  const [crsLabelsByCode, setCrsLabelsByCode] = useState<
-    Record<string, AxisLabels>
-  >({});
 
-  const hasTransactions = transactions.length > 0;
-  const isWgs84Form =
-    !hasTransactions && formCrsCode === DEFAULT_CRS_CODE;
+  const isWgs84Form = formCrsCode === DEFAULT_CRS_CODE;
   const geoAvailable =
     typeof navigator !== "undefined" && !!navigator.geolocation;
   const geoButtonDisabled =
@@ -122,35 +152,13 @@ export function CoordinateForm({
       .then((result) => {
         if (result.state === "denied") setGeoPermissionDenied(true);
       })
-      .catch(() => { });
+      .catch(() => {});
   }, [isWgs84Form, geoAvailable]);
 
-  const handleUseCurrentPosition = () => {
-    if (!navigator.geolocation || geoButtonDisabled) return;
-    setGeoLoading(true);
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        onFormXChange(String(position.coords.longitude));
-        onFormYChange(String(position.coords.latitude));
-        setGeoLoading(false);
-      },
-      () => {
-        setGeoUnavailable(true);
-        setGeoLoading(false);
-        setGeoSbOpen(true);
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    );
+  const handleFormCrsChange = (code: string) => {
+    setFormCrsCode(code);
+    setStoredDefaultCrs(code);
   };
-  const coord = hasTransactions
-    ? currentCoord
-    : (() => {
-      const x = parseFloat(formX);
-      const y = parseFloat(formY);
-      if (Number.isFinite(x) && Number.isFinite(y)) return { x, y };
-      return null;
-    })();
-  const crsCodeForActions = hasTransactions ? currentCrsCode : formCrsCode;
 
   const loadCrsOptions = () => {
     if (crsOptions !== null) return;
@@ -162,17 +170,15 @@ export function CoordinateForm({
   };
 
   useEffect(() => {
-    loadCrs(crsCodeForActions).then(setCrsInfo);
-  }, [crsCodeForActions]);
-
-  useEffect(() => {
     const codes = new Set<string>();
-    for (const tx of transactions) {
-      codes.add(tx.sourceCrsCode);
-      if (tx.type === "transform") codes.add(tx.targetCrsCode);
+    codes.add(formCrsCode);
+    for (const c of coordinates) {
+      codes.add(c.crsCode);
     }
     if (codes.size === 0) {
       setCrsLabelsByCode({});
+      setCrsNameByCode({});
+      setProjectableCrsCodes(new Set());
       return;
     }
     let cancelled = false;
@@ -180,43 +186,104 @@ export function CoordinateForm({
       Array.from(codes).map(async (code) => {
         const info = await loadCrs(code);
         if (cancelled || !info) return [code, null] as const;
-        return [code, getAxisLabels(info)] as const;
+        return [
+          code,
+          {
+            labels: getAxisLabels(info),
+            projected: isProjectedCrs(info),
+            name: info.name,
+          },
+        ] as const;
       })
     ).then((entries) => {
       if (cancelled) return;
-      const next: Record<string, AxisLabels> = {};
-      for (const [code, labels] of entries) {
-        if (labels) next[code] = labels;
+      const nextLabels: Record<string, AxisLabels> = {};
+      const nextNames: Record<string, string> = {};
+      const nextProjectable = new Set<string>();
+      for (const [code, data] of entries) {
+        if (data) {
+          nextLabels[code] = data.labels;
+          if (data.name) nextNames[code] = data.name;
+          if (data.projected) nextProjectable.add(code);
+        }
       }
-      setCrsLabelsByCode((prev) => ({ ...prev, ...next }));
+      setCrsLabelsByCode((prev) => ({ ...prev, ...nextLabels }));
+      setCrsNameByCode((prev) => ({ ...prev, ...nextNames }));
+      setProjectableCrsCodes(nextProjectable);
     });
     return () => {
       cancelled = true;
     };
-  }, [transactions]);
-
-  const labels = crsInfo ? getAxisLabels(crsInfo) : FALLBACK_LABELS;
-  const canProject =
-    crsInfo != null && isProjectedCrs(crsInfo) && coord != null;
+  }, [coordinates, formCrsCode]);
 
   const options = crsOptions ?? [];
   const formCrsValue = optionForCode(formCrsCode, options);
-  const targetOptions = options.filter((o) => o.code !== crsCodeForActions);
-  const targetCrsValue = optionForCode(targetCrsCode, targetOptions);
 
-  const handleOpenTransform = () => {
+  const handleUseCurrentPosition = () => {
+    if (!navigator.geolocation || geoButtonDisabled) return;
+    setGeoLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setFormX(String(position.coords.longitude));
+        setFormY(String(position.coords.latitude));
+        setGeoLoading(false);
+      },
+      () => {
+        setGeoUnavailable(true);
+        setGeoLoading(false);
+        setGeoSbOpen(true);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  };
+
+  const addValid =
+    Number.isFinite(parseFloat(formX)) &&
+    Number.isFinite(parseFloat(formY));
+  const handleAddCoordinate = () => {
+    const x = parseFloat(formX);
+    const y = parseFloat(formY);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+    onAddCoordinate({
+      crsCode: formCrsCode,
+      x,
+      y,
+      nameOverride: formName.trim() || undefined,
+    });
+    setFormName("");
+    setFormX("");
+    setFormY("");
+    onAddDialogClose();
+  };
+
+  const handleAddDialogClose = () => {
+    onAddDialogClose();
+    setFormName("");
+    setFormX("");
+    setFormY("");
+  };
+
+  const handleOpenTransform = (id: string) => {
+    setTransformCoordinateId(id);
+    const coord = coordinates.find((c) => c.id === id);
+    const crsCode = coord?.crsCode ?? DEFAULT_CRS_CODE;
+    const targetOptions = options.filter((o) => o.code !== crsCode);
     const firstOther = targetOptions[0];
     const fallback =
-      crsCodeForActions === DEFAULT_CRS_CODE ? "3857" : DEFAULT_CRS_CODE;
+      crsCode === DEFAULT_CRS_CODE ? "3857" : DEFAULT_CRS_CODE;
     setTargetCrsCode(firstOther ? firstOther.code : fallback);
     setTransformDialogOpen(true);
   };
   const handleTransformConfirm = () => {
-    onTransform(targetCrsCode);
-    setTransformDialogOpen(false);
+    if (transformCoordinateId) {
+      onTransform(transformCoordinateId, targetCrsCode);
+      setTransformDialogOpen(false);
+      setTransformCoordinateId(null);
+    }
   };
 
-  const handleOpenProject = () => {
+  const handleOpenProject = (id: string) => {
+    setProjectCoordinateId(id);
     setBearing("");
     setDistance("");
     setProjectDialogOpen(true);
@@ -224,9 +291,15 @@ export function CoordinateForm({
   const handleProjectConfirm = () => {
     const b = parseFloat(bearing);
     const d = parseFloat(distance);
-    if (Number.isFinite(b) && Number.isFinite(d) && d >= 0) {
-      onProject(b, d);
+    if (
+      projectCoordinateId &&
+      Number.isFinite(b) &&
+      Number.isFinite(d) &&
+      d >= 0
+    ) {
+      onProject(projectCoordinateId, b, d);
       setProjectDialogOpen(false);
+      setProjectCoordinateId(null);
     }
   };
   const projectValid =
@@ -234,170 +307,206 @@ export function CoordinateForm({
     Number.isFinite(parseFloat(distance)) &&
     parseFloat(distance) >= 0;
 
+  const handleOpenRename = (id: string) => {
+    const coord = coordinates.find((c) => c.id === id);
+    setRenameCoordinateId(id);
+    setRenameValue(coord?.name ?? "");
+    setRenameDialogOpen(true);
+  };
+  const handleRenameConfirm = () => {
+    const trimmed = renameValue.trim();
+    if (renameCoordinateId && trimmed) {
+      onRename(renameCoordinateId, trimmed);
+      setRenameDialogOpen(false);
+      setRenameCoordinateId(null);
+      setRenameValue("");
+    }
+  };
+
+  const targetOptions =
+    transformCoordinateId != null
+      ? (() => {
+          const coord = coordinates.find((c) => c.id === transformCoordinateId);
+          const crsCode = coord?.crsCode ?? DEFAULT_CRS_CODE;
+          return options.filter((o) => o.code !== crsCode);
+        })()
+      : [];
+  const targetCrsValue = optionForCode(targetCrsCode, targetOptions);
+
+  const labels = crsLabelsByCode[formCrsCode] ?? FALLBACK_LABELS;
+
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-      {!hasTransactions ? (
-        <>
-          <Autocomplete<CRSOption>
-            fullWidth
-            size="small"
-            options={options}
-            value={formCrsValue}
-            loading={crsLoading}
-            onOpen={loadCrsOptions}
-            getOptionLabel={(opt) => opt.label}
-            isOptionEqualToValue={(a, b) => a.code === b.code}
-            onChange={(_, newValue) => {
-              if (newValue) onFormCrsChange(newValue.code);
-            }}
-            slots={{ listbox: VirtualizedListbox }}
-            renderOption={(props, option) => (
-              <li {...props}>
-                <Box
-                  component="span"
-                  sx={{
-                    whiteSpace: "normal",
-                    wordBreak: "break-word",
-                    display: "block",
-                    lineHeight: 1.4,
-                    py: 0.5,
-                  }}
-                >
-                  {option.label}
-                </Box>
-              </li>
-            )}
-            renderInput={(params) => (
-              <TextField
-                {...params}
-                label="Coordinate reference system"
-                slotProps={{
-                  input: {
-                    ...params.InputProps,
-                    endAdornment: (
-                      <>
-                        {crsLoading ? (
-                          <CircularProgress color="inherit" size={20} />
-                        ) : null}
-                        {params.InputProps.endAdornment}
-                      </>
-                    ),
-                  },
-                }}
-              />
-            )}
-          />
-          <Box
-            sx={{
-              display: "flex",
-              gap: 2,
-              flexWrap: "wrap",
-              alignItems: "center",
-            }}
-          >
-            <TextField
-              label={labels.first}
-              type="number"
-              value={formX}
-              onChange={(e) => onFormXChange(e.target.value)}
-              size="small"
-              fullWidth
-              slotProps={{ htmlInput: { step: "any" } }}
-            />
-            <TextField
-              label={labels.second}
-              type="number"
-              value={formY}
-              onChange={(e) => onFormYChange(e.target.value)}
-              size="small"
-              fullWidth
-              slotProps={{ htmlInput: { step: "any" } }}
-            />
-            {isWgs84Form && (
-              <Tooltip
-                title={
-                  geoPermissionDenied
-                    ? "Location services must be enabled for this site to use this feature"
-                    : "Use current location"
-                }
-              >
-                <span>
-                  <IconButton
-                    color="primary"
-                    onClick={handleUseCurrentPosition}
-                    disabled={geoButtonDisabled}
-                    aria-label="Use current location"
-                    size="small"
-                    sx={{ flexShrink: 0 }}
-                  >
-                    {geoLoading ? (
-                      <CircularProgress color="inherit" size={24} />
-                    ) : (
-                      <LocationIcon />
-                    )}
-                  </IconButton>
-                </span>
-              </Tooltip>
-            )}
-          </Box>
-        </>
-      ) : null}
-
-      <TransactionList
-        transactions={transactions}
-        crsLabelsByCode={crsLabelsByCode}
-      />
-
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 2, pt: 1 }}>
-        {hasTransactions && currentCoord != null && (
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
-            <Typography variant="caption" color="text.secondary">
-              Current (EPSG:{currentCrsCode})
-            </Typography>
-            <CoordinateCard coord={currentCoord} axisLabels={labels} />
-          </Box>
-        )}
+      {coordinates.length === 0 ? (
         <Box
           sx={{
             display: "flex",
-            gap: 2,
-            flexWrap: "wrap",
+            flexDirection: "column",
             alignItems: "center",
+            justifyContent: "center",
+            gap: 2,
+            py: 6,
+            px: 2,
           }}
         >
+          <Typography color="text.secondary" textAlign="center">
+            No coordinates yet. Add one to get started.
+          </Typography>
           <Button
             variant="contained"
-            onClick={handleOpenTransform}
-            disabled={coord == null}
+            onClick={onAddDialogOpen}
           >
-            Transform
+            Add
           </Button>
-          {canProject && (
-            <Button
-              variant="contained"
-              onClick={handleOpenProject}
-            >
-              Project
-            </Button>
-          )}
-          {hasTransactions && (
-            <Button variant="outlined" color="error" onClick={onDeleteLast}>
-              Delete last
-            </Button>
-          )}
         </Box>
-        {!hasTransactions &&
-          coord == null &&
-          (formX !== "" || formY !== "") && (
-            <Typography variant="body2" color="text.secondary">
-              Enter valid numbers for both coordinates to enable Transform.
-            </Typography>
-          )}
-      </Box>
+      ) : (
+          <CoordinateList
+            coordinates={coordinates}
+            crsLabelsByCode={crsLabelsByCode}
+            crsNameByCode={crsNameByCode}
+            projectableCrsCodes={projectableCrsCodes}
+            onTransform={handleOpenTransform}
+            onProject={handleOpenProject}
+            onRename={handleOpenRename}
+            onDelete={onDelete}
+          />
+      )}
+
+      <Dialog
+        open={addDialogOpen}
+        onClose={handleAddDialogClose}
+      >
+        <DialogTitle>Add coordinate</DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 2, pt: 1 }}>
+            <Autocomplete<CRSOption>
+              fullWidth
+              size="small"
+              options={options}
+              value={formCrsValue}
+              loading={crsLoading}
+              onOpen={loadCrsOptions}
+              getOptionLabel={(opt) => opt.label}
+              isOptionEqualToValue={(a, b) => a.code === b.code}
+              onChange={(_, newValue) => {
+                if (newValue) handleFormCrsChange(newValue.code);
+              }}
+              slots={{ listbox: VirtualizedListbox }}
+              renderOption={(props, option) => (
+                <li {...props}>
+                  <Box
+                    component="span"
+                    sx={{
+                      whiteSpace: "normal",
+                      wordBreak: "break-word",
+                      display: "block",
+                      lineHeight: 1.4,
+                      py: 0.5,
+                    }}
+                  >
+                    {option.label}
+                  </Box>
+                </li>
+              )}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Coordinate reference system"
+                  slotProps={{
+                    input: {
+                      ...params.InputProps,
+                      endAdornment: (
+                        <>
+                          {crsLoading ? (
+                            <CircularProgress color="inherit" size={20} />
+                          ) : null}
+                          {params.InputProps.endAdornment}
+                        </>
+                      ),
+                    },
+                  }}
+                />
+              )}
+            />
+            <Box
+              sx={{
+                display: "flex",
+                gap: 2,
+                flexWrap: "wrap",
+                alignItems: "center",
+              }}
+            >
+              <TextField
+                label="Name"
+                size="small"
+                value={formName || nextSuggestedName}
+                onChange={(e) => setFormName(e.target.value)}
+              />
+              <TextField
+                label={labels.first}
+                type="number"
+                value={formX}
+                onChange={(e) => setFormX(e.target.value)}
+                size="small"
+                fullWidth
+                slotProps={{ htmlInput: { step: "any" } }}
+              />
+              <TextField
+                label={labels.second}
+                type="number"
+                value={formY}
+                onChange={(e) => setFormY(e.target.value)}
+                size="small"
+                fullWidth
+                slotProps={{ htmlInput: { step: "any" } }}
+              />
+              {isWgs84Form && (
+                <Tooltip
+                  title={
+                    geoPermissionDenied
+                      ? "Location services must be enabled for this site to use this feature"
+                      : "Use current location"
+                  }
+                >
+                  <span>
+                    <IconButton
+                      color="primary"
+                      onClick={handleUseCurrentPosition}
+                      disabled={geoButtonDisabled}
+                      aria-label="Use current location"
+                      size="small"
+                      sx={{ flexShrink: 0 }}
+                    >
+                      {geoLoading ? (
+                        <CircularProgress color="inherit" size={24} />
+                      ) : (
+                        <LocationIcon />
+                      )}
+                    </IconButton>
+                  </span>
+                </Tooltip>
+              )}
+            </Box>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleAddDialogClose}>Cancel</Button>
+          <Button
+            variant="contained"
+            onClick={handleAddCoordinate}
+            disabled={!addValid}
+          >
+            Add
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       <Dialog
         open={transformDialogOpen}
-        onClose={() => setTransformDialogOpen(false)}
+        onClose={() => {
+          setTransformDialogOpen(false);
+          setTransformCoordinateId(null);
+        }}
       >
         <DialogTitle>Transform to CRS</DialogTitle>
         <DialogContent>
@@ -453,7 +562,14 @@ export function CoordinateForm({
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setTransformDialogOpen(false)}>Cancel</Button>
+          <Button
+            onClick={() => {
+              setTransformDialogOpen(false);
+              setTransformCoordinateId(null);
+            }}
+          >
+            Cancel
+          </Button>
           <Button onClick={handleTransformConfirm} variant="contained">
             Transform
           </Button>
@@ -462,7 +578,10 @@ export function CoordinateForm({
 
       <Dialog
         open={projectDialogOpen}
-        onClose={() => setProjectDialogOpen(false)}
+        onClose={() => {
+          setProjectDialogOpen(false);
+          setProjectCoordinateId(null);
+        }}
       >
         <DialogTitle>Project by bearing and distance</DialogTitle>
         <DialogContent>
@@ -494,13 +613,59 @@ export function CoordinateForm({
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setProjectDialogOpen(false)}>Cancel</Button>
+          <Button
+            onClick={() => {
+              setProjectDialogOpen(false);
+              setProjectCoordinateId(null);
+            }}
+          >
+            Cancel
+          </Button>
           <Button
             onClick={handleProjectConfirm}
             variant="contained"
             disabled={!projectValid}
           >
             Project
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={renameDialogOpen}
+        onClose={() => {
+          setRenameDialogOpen(false);
+          setRenameCoordinateId(null);
+          setRenameValue("");
+        }}
+      >
+        <DialogTitle>Rename coordinate</DialogTitle>
+        <DialogContent>
+          <TextField
+            fullWidth
+            label="Name"
+            value={renameValue}
+            onChange={(e) => setRenameValue(e.target.value)}
+            size="small"
+            sx={{ mt: 1, minWidth: 280 }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => {
+              setRenameDialogOpen(false);
+              setRenameCoordinateId(null);
+              setRenameValue("");
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleRenameConfirm}
+            variant="contained"
+            disabled={!renameValue.trim()}
+          >
+            Rename
           </Button>
         </DialogActions>
       </Dialog>

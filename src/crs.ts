@@ -96,3 +96,18 @@ export function getAxisLabels(crs: CRSInfo): { first: string; second: string } {
   }
   return { first: "Longitude", second: "Latitude" };
 }
+
+const DEFAULT_CRS_STORAGE_KEY = "lat-long-default-crs";
+
+/** Read persisted default CRS code; returns DEFAULT_CRS_CODE if missing or invalid. */
+export function getStoredDefaultCrs(): string {
+  if (typeof localStorage === "undefined") return DEFAULT_CRS_CODE;
+  const s = localStorage.getItem(DEFAULT_CRS_STORAGE_KEY);
+  return s && s.trim() ? s.trim() : DEFAULT_CRS_CODE;
+}
+
+/** Persist default CRS code for next session and manual adds. */
+export function setStoredDefaultCrs(code: string): void {
+  if (typeof localStorage === "undefined") return;
+  localStorage.setItem(DEFAULT_CRS_STORAGE_KEY, code);
+}
