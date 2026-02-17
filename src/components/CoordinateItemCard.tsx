@@ -20,6 +20,8 @@ interface CoordinateItemCardProps {
   onTransform: (id: string) => void;
   onProject: (id: string) => void;
   onRename: (id: string) => void;
+  onAddNote: (id: string) => void;
+  onFindBearing: (id: string) => void;
   onDelete: (id: string) => void;
   canProject: boolean;
 }
@@ -31,6 +33,8 @@ export function CoordinateItemCard({
   onTransform,
   onProject,
   onRename,
+  onAddNote,
+  onFindBearing,
   onDelete,
   canProject,
 }: CoordinateItemCardProps) {
@@ -53,6 +57,14 @@ export function CoordinateItemCard({
   const handleRename = () => {
     handleMenuClose();
     onRename(coordinate.id);
+  };
+  const handleAddNote = () => {
+    handleMenuClose();
+    onAddNote(coordinate.id);
+  };
+  const handleFindBearing = () => {
+    handleMenuClose();
+    onFindBearing(coordinate.id);
   };
   const handleDelete = () => {
     handleMenuClose();
@@ -86,16 +98,51 @@ export function CoordinateItemCard({
               <MoreVert fontSize="small" />
             </IconButton>
           </Box>
-          <Typography variant="body2" color="text.secondary" gutterBottom>
-            {crsName
-              ? `${crsName} (EPSG:${coordinate.crsCode})`
-              : `EPSG:${coordinate.crsCode}`}
-          </Typography>
-          <Box sx={{ mb: 0 }}>
-            <CoordinateCard
-              coord={{ x: coordinate.x, y: coordinate.y }}
-              axisLabels={axisLabels}
-            />
+          <Box
+            sx={{
+              display: "flex",
+              width: "100%",
+              gap: 2,
+            }}
+          >
+            <Box sx={{ flex: "1 1 50%", minWidth: 0 }}>
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                {crsName
+                  ? `${crsName} (EPSG:${coordinate.crsCode})`
+                  : `EPSG:${coordinate.crsCode}`}
+              </Typography>
+              <Box sx={{ mb: 0 }}>
+                <CoordinateCard
+                  coord={{ x: coordinate.x, y: coordinate.y }}
+                  axisLabels={axisLabels}
+                />
+              </Box>
+            </Box>
+            <Box
+              sx={{
+                flex: "1 1 50%",
+                minWidth: 0,
+                overflowY: "auto",
+              }}
+            >
+              <Typography
+                variant="body2"
+                color="text.primary"
+                component="span"
+                sx={{ fontWeight: 500 }}
+              >
+                Notes:
+              </Typography>
+              {coordinate.notes != null && coordinate.notes !== "" ? (
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ whiteSpace: "pre-wrap", mt: 0.5 }}
+                >
+                  {coordinate.notes}
+                </Typography>
+              ) : null}
+            </Box>
           </Box>
         </CardContent>
       </Card>
@@ -116,8 +163,18 @@ export function CoordinateItemCard({
             <ListItemText primary="Project" />
           </MenuItem>
         )}
+        {canProject && (
+          <MenuItem onClick={handleFindBearing}>
+            <ListItemText primary="Find bearing" />
+          </MenuItem>
+        )}
         <MenuItem onClick={handleRename}>
           <ListItemText primary="Rename" />
+        </MenuItem>
+        <MenuItem onClick={handleAddNote}>
+          <ListItemText
+            primary={coordinate.notes ? "Edit note" : "Add note"}
+          />
         </MenuItem>
         <MenuItem onClick={handleDelete} sx={{ color: "error.main" }}>
           <ListItemText primary="Delete" />

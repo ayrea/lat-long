@@ -1,3 +1,4 @@
+import Add from "@mui/icons-material/Add";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Dialog from "@mui/material/Dialog";
@@ -9,6 +10,7 @@ import IconButton from "@mui/material/IconButton";
 import ListItemText from "@mui/material/ListItemText";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
+import Typography from "@mui/material/Typography";
 import { useState } from "react";
 import type { ColorMode } from "../theme";
 
@@ -84,23 +86,30 @@ export function TopBar({
           width: "100%",
         }}
       >
-        {hasCoordinates ? (
-          <Button variant="outlined" onClick={onAddCoordinate}>
-            Add coordinate
-          </Button>
-        ) : (
-          <Box />
-        )}
-        <IconButton
-          id="app-menu-button"
-          onClick={handleMenuOpen}
-          aria-label="Open menu"
-          aria-controls={menuOpen ? "app-menu" : undefined}
-          aria-haspopup="true"
-          aria-expanded={menuOpen ? "true" : undefined}
-        >
-          <MenuIcon />
-        </IconButton>
+        <Typography variant="h6" component="h1">
+          Coordinate Helper
+        </Typography>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+          {hasCoordinates && (
+            <IconButton
+              onClick={onAddCoordinate}
+              aria-label="Add coordinate"
+              size="small"
+            >
+              <Add />
+            </IconButton>
+          )}
+          <IconButton
+            id="app-menu-button"
+            onClick={handleMenuOpen}
+            aria-label="Open menu"
+            aria-controls={menuOpen ? "app-menu" : undefined}
+            aria-haspopup="true"
+            aria-expanded={menuOpen ? "true" : undefined}
+          >
+            <MenuIcon />
+          </IconButton>
+        </Box>
       </Box>
       <Menu
         id="app-menu"

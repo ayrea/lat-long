@@ -8,7 +8,10 @@ import { CoordinateForm } from "./components/CoordinateForm";
 import { getAppTheme, type ColorMode } from "./theme";
 import { loadCrs, setStoredDefaultCrs } from "./crs";
 import { transformCoordinate } from "./transform";
-import { projectFromBearingDistance } from "./project";
+import {
+  projectFromBearingDistance,
+  bearingDistanceBetween,
+} from "./project";
 import type { Coordinate } from "./types";
 
 const COLOR_MODE_STORAGE_KEY = "lat-long-color-mode";
@@ -180,6 +183,42 @@ export default function App() {
     setCoordinates((prev) => prev.filter((c) => c.id !== coordinateId));
   }, []);
 
+  const handleUpdateNote = useCallback((coordinateId: string, notes: string) => {
+    setCoordinates((prev) =>
+      prev.map((c) =>
+        c.id === coordinateId ? { ...c, notes } : c
+      )
+    );
+  }, []);
+
+  const handleFindBearing = useCallback(
+    (sourceCoordinateId: string, targetCoordinateId: string) => {
+      setError(null);
+      const source = coordinates.find((c) => c.id === sourceCoordinateId);
+      const target = coordinates.find((c) => c.id === targetCoordinateId);
+      if (!source || !target) return;
+      try {
+        const { bearingDeg, distance } = bearingDistanceBetween(
+          source.x,
+          source.y,
+          target.x,
+          target.y
+        );
+        const line = `Bearing to ${target.name}: ${bearingDeg.toFixed(1)}°, distance: ${distance.toFixed(2)} units`;
+        const existing = (source.notes ?? "").trim();
+        const newNotes = existing ? `${existing}\n${line}` : line;
+        setCoordinates((prev) =>
+          prev.map((c) =>
+            c.id === sourceCoordinateId ? { ...c, notes: newNotes } : c
+          )
+        );
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Find bearing failed.");
+      }
+    },
+    [coordinates]
+  );
+
   const handleReset = useCallback(() => {
     setCoordinates([]);
     setError(null);
@@ -194,13 +233,14 @@ export default function App() {
         crsNameByCode[code] = info?.name ?? "";
       })
     );
-    const headers = ["Name", "CRS Code", "CRS Name", "X", "Y"];
+    const headers = ["Name", "CRS Code", "CRS Name", "X", "Y", "Notes"];
     const rows = coordinates.map((c) => [
       c.name,
       c.crsCode,
       crsNameByCode[c.crsCode] ?? "",
       c.x,
       c.y,
+      c.notes ?? "",
     ]);
     const csv =
       headers.map(escapeCsvCell).join(",") +
@@ -253,6 +293,8 @@ export default function App() {
           onProject={handleProject}
           onRename={handleRename}
           onDelete={handleDelete}
+          onUpdateNote={handleUpdateNote}
+          onFindBearing={handleFindBearing}
         />
       </Box>
     </ThemeProvider>

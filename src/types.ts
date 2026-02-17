@@ -15,6 +15,8 @@ export interface Coordinate {
   x: number;
   /** Y / latitude / northing value (depends on CRS). */
   y: number;
+  /** Optional user note for this coordinate. */
+  notes?: string;
 }
 
 export interface CRSInfo {

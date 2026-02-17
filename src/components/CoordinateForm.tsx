@@ -7,6 +7,8 @@ import DialogActions from "@mui/material/DialogActions";
 import DialogContent from "@mui/material/DialogContent";
 import DialogTitle from "@mui/material/DialogTitle";
 import IconButton from "@mui/material/IconButton";
+import List from "@mui/material/List";
+import ListItemButton from "@mui/material/ListItemButton";
 import Snackbar from "@mui/material/Snackbar";
 import TextField from "@mui/material/TextField";
 import Tooltip from "@mui/material/Tooltip";
@@ -47,6 +49,8 @@ interface CoordinateFormProps {
   onTransform: (coordinateId: string, targetCrsCode: string) => void;
   onProject: (coordinateId: string, bearing: number, distance: number) => void;
   onRename: (coordinateId: string, newName: string) => void;
+  onUpdateNote: (coordinateId: string, notes: string) => void;
+  onFindBearing: (sourceCoordinateId: string, targetCoordinateId: string) => void;
   onDelete: (coordinateId: string) => void;
 }
 
@@ -84,6 +88,8 @@ export function CoordinateForm({
   onTransform,
   onProject,
   onRename,
+  onUpdateNote,
+  onFindBearing,
   onDelete,
 }: CoordinateFormProps) {
   const [crsOptions, setCrsOptions] = useState<CRSOption[] | null>(null);
@@ -125,6 +131,18 @@ export function CoordinateForm({
     null
   );
   const [renameValue, setRenameValue] = useState("");
+
+  const [noteDialogOpen, setNoteDialogOpen] = useState(false);
+  const [noteCoordinateId, setNoteCoordinateId] = useState<string | null>(null);
+  const [noteValue, setNoteValue] = useState("");
+
+  const [findBearingDialogOpen, setFindBearingDialogOpen] = useState(false);
+  const [findBearingSourceId, setFindBearingSourceId] = useState<string | null>(
+    null
+  );
+  const [findBearingTargetId, setFindBearingTargetId] = useState<string | null>(
+    null
+  );
 
   const [geoLoading, setGeoLoading] = useState(false);
   const [geoUnavailable, setGeoUnavailable] = useState(false);
@@ -323,6 +341,35 @@ export function CoordinateForm({
     }
   };
 
+  const handleOpenNote = (id: string) => {
+    const coord = coordinates.find((c) => c.id === id);
+    setNoteCoordinateId(id);
+    setNoteValue(coord?.notes ?? "");
+    setNoteDialogOpen(true);
+  };
+  const handleNoteConfirm = () => {
+    if (noteCoordinateId != null) {
+      onUpdateNote(noteCoordinateId, noteValue);
+      setNoteDialogOpen(false);
+      setNoteCoordinateId(null);
+      setNoteValue("");
+    }
+  };
+
+  const handleOpenFindBearing = (id: string) => {
+    setFindBearingSourceId(id);
+    setFindBearingTargetId(null);
+    setFindBearingDialogOpen(true);
+  };
+  const handleFindBearingConfirm = () => {
+    if (findBearingSourceId && findBearingTargetId) {
+      onFindBearing(findBearingSourceId, findBearingTargetId);
+      setFindBearingDialogOpen(false);
+      setFindBearingSourceId(null);
+      setFindBearingTargetId(null);
+    }
+  };
+
   const targetOptions =
     transformCoordinateId != null
       ? (() => {
@@ -368,6 +415,8 @@ export function CoordinateForm({
             onTransform={handleOpenTransform}
             onProject={handleOpenProject}
             onRename={handleOpenRename}
+            onAddNote={handleOpenNote}
+            onFindBearing={handleOpenFindBearing}
             onDelete={onDelete}
           />
       )}
@@ -666,6 +715,109 @@ export function CoordinateForm({
             disabled={!renameValue.trim()}
           >
             Rename
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={noteDialogOpen}
+        onClose={() => {
+          setNoteDialogOpen(false);
+          setNoteCoordinateId(null);
+          setNoteValue("");
+        }}
+      >
+        <DialogTitle>
+          {(coordinates.find((c) => c.id === noteCoordinateId)?.notes ?? "")
+            ? "Edit note"
+            : "Add note"}
+        </DialogTitle>
+        <DialogContent>
+          <TextField
+            fullWidth
+            label="Note"
+            value={noteValue}
+            onChange={(e) => setNoteValue(e.target.value)}
+            size="small"
+            multiline
+            minRows={3}
+            sx={{ mt: 1, minWidth: 280 }}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => {
+              setNoteDialogOpen(false);
+              setNoteCoordinateId(null);
+              setNoteValue("");
+            }}
+          >
+            Cancel
+          </Button>
+          <Button onClick={handleNoteConfirm} variant="contained">
+            Save
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={findBearingDialogOpen}
+        onClose={() => {
+          setFindBearingDialogOpen(false);
+          setFindBearingSourceId(null);
+          setFindBearingTargetId(null);
+        }}
+      >
+        <DialogTitle>Find bearing</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+            Select a coordinate (same CRS) to compute bearing and distance from
+            the current point:
+          </Typography>
+          {(() => {
+            const source = coordinates.find((c) => c.id === findBearingSourceId);
+            const sourceCrsCode = source?.crsCode ?? "";
+            const sameCrsCoords = coordinates.filter(
+              (c) => c.id !== findBearingSourceId && c.crsCode === sourceCrsCode
+            );
+            if (sameCrsCoords.length === 0) {
+              return (
+                <Typography variant="body2" color="text.secondary">
+                  No other coordinates with the same CRS.
+                </Typography>
+              );
+            }
+            return (
+              <List dense sx={{ minWidth: 280, maxHeight: 240, overflow: "auto" }}>
+                {sameCrsCoords.map((coord) => (
+                  <ListItemButton
+                    key={coord.id}
+                    selected={findBearingTargetId === coord.id}
+                    onClick={() => setFindBearingTargetId(coord.id)}
+                  >
+                    {coord.name}
+                  </ListItemButton>
+                ))}
+              </List>
+            );
+          })()}
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => {
+              setFindBearingDialogOpen(false);
+              setFindBearingSourceId(null);
+              setFindBearingTargetId(null);
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleFindBearingConfirm}
+            variant="contained"
+            disabled={!findBearingTargetId}
+          >
+            Add to notes
           </Button>
         </DialogActions>
       </Dialog>

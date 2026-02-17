@@ -16,6 +16,8 @@ interface CoordinateListProps {
   onTransform: (id: string) => void;
   onProject: (id: string) => void;
   onRename: (id: string) => void;
+  onAddNote: (id: string) => void;
+  onFindBearing: (id: string) => void;
   onDelete: (id: string) => void;
 }
 
@@ -35,6 +37,8 @@ export function CoordinateList({
   onTransform,
   onProject,
   onRename,
+  onAddNote,
+  onFindBearing,
   onDelete,
 }: CoordinateListProps) {
   const lastCardRef = useRef<HTMLDivElement>(null);
@@ -72,6 +76,8 @@ export function CoordinateList({
             onTransform={onTransform}
             onProject={onProject}
             onRename={onRename}
+            onAddNote={onAddNote}
+            onFindBearing={onFindBearing}
             onDelete={onDelete}
           />
         </Box>
