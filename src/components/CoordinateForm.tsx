@@ -8,12 +8,14 @@ import DialogContent from "@mui/material/DialogContent";
 import DialogTitle from "@mui/material/DialogTitle";
 import IconButton from "@mui/material/IconButton";
 import List from "@mui/material/List";
+import ListItem from "@mui/material/ListItem";
 import ListItemButton from "@mui/material/ListItemButton";
+import ListItemText from "@mui/material/ListItemText";
 import Snackbar from "@mui/material/Snackbar";
 import TextField from "@mui/material/TextField";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   getAllCrsList,
   DEFAULT_CRS_CODE,
@@ -45,6 +47,7 @@ interface CoordinateFormProps {
     x: number;
     y: number;
     nameOverride?: string;
+    notes?: string;
   }) => void;
   onTransform: (coordinateId: string, targetCrsCode: string) => void;
   onProject: (coordinateId: string, bearing: number, distance: number) => void;
@@ -63,6 +66,31 @@ function LocationIcon() {
       fill="currentColor"
       aria-hidden="true"
     >
+      <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
+    </svg>
+  );
+}
+
+/** Icon suggesting multiple measurements (stacked/ghosted location pins). */
+function GpsAveragingIcon() {
+  return (
+    <svg
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden="true"
+    >
+      <path
+        d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"
+        opacity="0.35"
+        transform="translate(-4, 0)"
+      />
+      <path
+        d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"
+        opacity="0.6"
+        transform="translate(4, 0)"
+      />
       <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
     </svg>
   );
@@ -149,6 +177,15 @@ export function CoordinateForm({
   const [geoPermissionDenied, setGeoPermissionDenied] = useState(false);
   const [geoSbOpen, setGeoSbOpen] = useState(false);
 
+  const [gpsAveragingDialogOpen, setGpsAveragingDialogOpen] = useState(false);
+  const [gpsReadings, setGpsReadings] = useState<
+    { longitude: number; latitude: number }[]
+  >([]);
+  const gpsAveragingCancelledRef = useRef(false);
+  const gpsAveragingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null
+  );
+
   const isWgs84Form = formCrsCode === DEFAULT_CRS_CODE;
   const geoAvailable =
     typeof navigator !== "undefined" && !!navigator.geolocation;
@@ -170,7 +207,7 @@ export function CoordinateForm({
       .then((result) => {
         if (result.state === "denied") setGeoPermissionDenied(true);
       })
-      .catch(() => {});
+      .catch(() => { });
   }, [isWgs84Form, geoAvailable]);
 
   const handleFormCrsChange = (code: string) => {
@@ -370,13 +407,98 @@ export function CoordinateForm({
     }
   };
 
+  const handleOpenGpsAveraging = () => {
+    gpsAveragingCancelledRef.current = false;
+    setGpsReadings([]);
+    setGpsAveragingDialogOpen(true);
+  };
+
+  const handleCloseGpsAveraging = () => {
+    gpsAveragingCancelledRef.current = true;
+    if (gpsAveragingTimeoutRef.current != null) {
+      clearTimeout(gpsAveragingTimeoutRef.current);
+      gpsAveragingTimeoutRef.current = null;
+    }
+    setGpsAveragingDialogOpen(false);
+    setGpsReadings([]);
+  };
+
+  useEffect(() => {
+    if (!gpsAveragingDialogOpen || !navigator.geolocation) return;
+    const capture = () => {
+      if (gpsAveragingCancelledRef.current) return;
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          if (gpsAveragingCancelledRef.current) return;
+          const { longitude, latitude } = position.coords;
+          setGpsReadings((prev) => {
+            const next = [...prev, { longitude, latitude }];
+            if (next.length < 10) {
+              gpsAveragingTimeoutRef.current = setTimeout(capture, 5000);
+            }
+            return next;
+          });
+        },
+        () => {
+          if (!gpsAveragingCancelledRef.current) {
+            setGeoUnavailable(true);
+            setGeoSbOpen(true);
+            handleCloseGpsAveraging();
+          }
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    };
+    capture();
+    return () => {
+      gpsAveragingCancelledRef.current = true;
+      if (gpsAveragingTimeoutRef.current != null) {
+        clearTimeout(gpsAveragingTimeoutRef.current);
+        gpsAveragingTimeoutRef.current = null;
+      }
+    };
+  }, [gpsAveragingDialogOpen]);
+
+  useEffect(() => {
+    if (gpsReadings.length !== 10) return;
+    const avgLon =
+      gpsReadings.reduce((s, r) => s + r.longitude, 0) / gpsReadings.length;
+    const avgLat =
+      gpsReadings.reduce((s, r) => s + r.latitude, 0) / gpsReadings.length;
+    const formattedNotes = gpsReadings
+      .map(
+        (r, i) =>
+          `${i + 1}. ${r.longitude}, ${r.latitude}`
+      )
+      .join("\n");
+    onAddCoordinate({
+      crsCode: formCrsCode,
+      x: avgLon,
+      y: avgLat,
+      nameOverride: formName.trim() || undefined,
+      notes: formattedNotes,
+    });
+    setFormName("");
+    setFormX("");
+    setFormY("");
+    setGpsAveragingDialogOpen(false);
+    setGpsReadings([]);
+    onAddDialogClose();
+  }, [
+    gpsReadings,
+    formCrsCode,
+    formName,
+    onAddCoordinate,
+    onAddDialogClose,
+  ]);
+
   const targetOptions =
     transformCoordinateId != null
       ? (() => {
-          const coord = coordinates.find((c) => c.id === transformCoordinateId);
-          const crsCode = coord?.crsCode ?? DEFAULT_CRS_CODE;
-          return options.filter((o) => o.code !== crsCode);
-        })()
+        const coord = coordinates.find((c) => c.id === transformCoordinateId);
+        const crsCode = coord?.crsCode ?? DEFAULT_CRS_CODE;
+        return options.filter((o) => o.code !== crsCode);
+      })()
       : [];
   const targetCrsValue = optionForCode(targetCrsCode, targetOptions);
 
@@ -407,18 +529,18 @@ export function CoordinateForm({
           </Button>
         </Box>
       ) : (
-          <CoordinateList
-            coordinates={coordinates}
-            crsLabelsByCode={crsLabelsByCode}
-            crsNameByCode={crsNameByCode}
-            projectableCrsCodes={projectableCrsCodes}
-            onTransform={handleOpenTransform}
-            onProject={handleOpenProject}
-            onRename={handleOpenRename}
-            onAddNote={handleOpenNote}
-            onFindBearing={handleOpenFindBearing}
-            onDelete={onDelete}
-          />
+        <CoordinateList
+          coordinates={coordinates}
+          crsLabelsByCode={crsLabelsByCode}
+          crsNameByCode={crsNameByCode}
+          projectableCrsCodes={projectableCrsCodes}
+          onTransform={handleOpenTransform}
+          onProject={handleOpenProject}
+          onRename={handleOpenRename}
+          onAddNote={handleOpenNote}
+          onFindBearing={handleOpenFindBearing}
+          onDelete={onDelete}
+        />
       )}
 
       <Dialog
@@ -510,30 +632,52 @@ export function CoordinateForm({
                 slotProps={{ htmlInput: { step: "any" } }}
               />
               {isWgs84Form && (
-                <Tooltip
-                  title={
-                    geoPermissionDenied
-                      ? "Location services must be enabled for this site to use this feature"
-                      : "Use current location"
-                  }
-                >
-                  <span>
-                    <IconButton
-                      color="primary"
-                      onClick={handleUseCurrentPosition}
-                      disabled={geoButtonDisabled}
-                      aria-label="Use current location"
-                      size="small"
-                      sx={{ flexShrink: 0 }}
-                    >
-                      {geoLoading ? (
-                        <CircularProgress color="inherit" size={24} />
-                      ) : (
-                        <LocationIcon />
-                      )}
-                    </IconButton>
-                  </span>
-                </Tooltip>
+                <>
+                  <Tooltip
+                    title={
+                      geoPermissionDenied
+                        ? "Location services must be enabled for this site to use this feature"
+                        : "Use current location"
+                    }
+                  >
+                    <span>
+                      <IconButton
+                        color="primary"
+                        onClick={handleUseCurrentPosition}
+                        disabled={geoButtonDisabled}
+                        aria-label="Use current location"
+                        size="small"
+                        sx={{ flexShrink: 0 }}
+                      >
+                        {geoLoading ? (
+                          <CircularProgress color="inherit" size={24} />
+                        ) : (
+                          <LocationIcon />
+                        )}
+                      </IconButton>
+                    </span>
+                  </Tooltip>
+                  <Tooltip
+                    title={
+                      geoPermissionDenied
+                        ? "Location services must be enabled for this site to use this feature"
+                        : "GPS averaging (10 samples)"
+                    }
+                  >
+                    <span>
+                      <IconButton
+                        color="primary"
+                        onClick={handleOpenGpsAveraging}
+                        disabled={geoButtonDisabled}
+                        aria-label="GPS averaging (10 samples)"
+                        size="small"
+                        sx={{ flexShrink: 0 }}
+                      >
+                        <GpsAveragingIcon />
+                      </IconButton>
+                    </span>
+                  </Tooltip>
+                </>
               )}
             </Box>
           </Box>
@@ -547,6 +691,77 @@ export function CoordinateForm({
           >
             Add
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={gpsAveragingDialogOpen}
+        onClose={handleCloseGpsAveraging}
+        aria-labelledby="gps-averaging-dialog-title"
+      >
+        <DialogTitle id="gps-averaging-dialog-title">
+          GPS Averaging
+        </DialogTitle>
+        <DialogContent>
+          <Box
+            sx={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 2,
+              pt: 1,
+            }}
+          >
+            <Box sx={{ position: "relative", display: "inline-flex" }}>
+              <CircularProgress
+                variant="determinate"
+                value={(gpsReadings.length / 10) * 100}
+                size={56}
+              />
+              <Box
+                sx={{
+                  top: 0,
+                  left: 0,
+                  bottom: 0,
+                  right: 0,
+                  position: "absolute",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Typography
+                  variant="caption"
+                  component="span"
+                  color="text.secondary"
+                >
+                  {`${gpsReadings.length} / 10`}
+                </Typography>
+              </Box>
+            </Box>
+            <List dense sx={{ width: "100%", maxHeight: 240, overflow: "auto" }}>
+              {Array.from({ length: 10 }, (_, i) => (
+                <ListItem key={i} disablePadding>
+                  <ListItemText
+                    primary={
+                      gpsReadings[i]
+                        ? `Longitude: ${gpsReadings[i].longitude}, Latitude: ${gpsReadings[i].latitude}`
+                        : " "
+                    }
+                    primaryTypographyProps={{
+                      variant: "body2",
+                      color: gpsReadings[i]
+                        ? "text.primary"
+                        : "text.secondary",
+                    }}
+                  />
+                </ListItem>
+              ))}
+            </List>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseGpsAveraging}>Cancel</Button>
         </DialogActions>
       </Dialog>
 

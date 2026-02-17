@@ -70,6 +70,7 @@ export default function App() {
       x: number;
       y: number;
       nameOverride?: string;
+      notes?: string;
     }) => {
       const existing = new Set(coordinates.map((c) => c.name));
       const name =
@@ -85,6 +86,9 @@ export default function App() {
           crsCode: payload.crsCode,
           x: payload.x,
           y: payload.y,
+          ...(payload.notes != null && payload.notes !== ""
+            ? { notes: payload.notes }
+            : {}),
         },
       ]);
     },
