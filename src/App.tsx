@@ -2,7 +2,7 @@ import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import CssBaseline from "@mui/material/CssBaseline";
 import { ThemeProvider } from "@mui/material";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { TopBar } from "./components/TopBar";
 import { CoordinateForm } from "./components/CoordinateForm";
 import { getAppTheme, type ColorMode } from "./theme";
@@ -58,6 +58,18 @@ export default function App() {
   const [coordinates, setCoordinates] = useState<Coordinate[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
+
+  useEffect(() => {
+    if (coordinates.length === 0) return;
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      // Browsers do not allow custom beforeunload messages (they show a generic
+      // "Leave site?" prompt) for security reasons. preventDefault() alone
+      // triggers the dialog.
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [coordinates.length]);
 
   const handleColorModeChange = useCallback((mode: ColorMode) => {
     setColorMode(mode);

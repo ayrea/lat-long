@@ -153,7 +153,7 @@ export function CoordinateItemCard({
         onClose={handleMenuClose}
         anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
         transformOrigin={{ vertical: "top", horizontal: "right" }}
-        MenuListProps={{ "aria-labelledby": `coordinate-card-menu-button-${coordinate.id}` }}
+        slotProps={{ list: { "aria-labelledby": `coordinate-card-menu-button-${coordinate.id}` } }}
       >
         <MenuItem onClick={handleTransform}>
           <ListItemText primary="Transform" />

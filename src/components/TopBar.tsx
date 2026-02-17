@@ -118,7 +118,7 @@ export function TopBar({
         onClose={handleMenuClose}
         anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
         transformOrigin={{ vertical: "top", horizontal: "right" }}
-        MenuListProps={{ "aria-labelledby": "app-menu-button" }}
+        slotProps={{ list: { "aria-labelledby": "app-menu-button" } }}
       >
         <MenuItem onClick={handleResetClick}>
           <ListItemText primary="Reset" />
