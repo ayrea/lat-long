@@ -748,11 +748,13 @@ export function CoordinateForm({
                         ? `Longitude: ${gpsReadings[i].longitude}, Latitude: ${gpsReadings[i].latitude}`
                         : " "
                     }
-                    primaryTypographyProps={{
-                      variant: "body2",
-                      color: gpsReadings[i]
-                        ? "text.primary"
-                        : "text.secondary",
+                    slotProps={{
+                      primary: {
+                        variant: "body2",
+                        color: gpsReadings[i]
+                          ? "text.primary"
+                          : "text.secondary",
+                      },
                     }}
                   />
                 </ListItem>

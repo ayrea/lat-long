@@ -276,29 +276,43 @@ export default function App() {
       <CssBaseline />
       <Box
         sx={{
+          height: "100vh",
+          overflow: "hidden",
           maxWidth: 720,
           mx: "auto",
           px: 2,
           py: 2,
           display: "flex",
           flexDirection: "column",
-          minHeight: "100vh",
         }}
       >
-        <TopBar
-          colorMode={colorMode}
-          onColorModeChange={handleColorModeChange}
-          hasCoordinates={coordinates.length > 0}
-          onReset={handleReset}
-          onExport={handleExport}
-          onAddCoordinate={() => setAddDialogOpen(true)}
-        />
+        <Box sx={{ flexShrink: 0 }}>
+          <TopBar
+            colorMode={colorMode}
+            onColorModeChange={handleColorModeChange}
+            hasCoordinates={coordinates.length > 0}
+            onReset={handleReset}
+            onExport={handleExport}
+            onAddCoordinate={() => setAddDialogOpen(true)}
+          />
+        </Box>
         {error != null && (
-          <Alert severity="error" onClose={() => setError(null)} sx={{ mb: 2 }}>
+          <Alert
+            severity="error"
+            onClose={() => setError(null)}
+            sx={{ mb: 2, flexShrink: 0 }}
+          >
             {error}
           </Alert>
         )}
-        <CoordinateForm
+        <Box
+          sx={{
+            flex: 1,
+            minHeight: 0,
+            overflow: "auto",
+          }}
+        >
+          <CoordinateForm
           coordinates={coordinates}
           nextSuggestedName={getNextNumericName(coordinates)}
           addDialogOpen={addDialogOpen}
@@ -312,6 +326,7 @@ export default function App() {
           onUpdateNote={handleUpdateNote}
           onFindBearing={handleFindBearing}
         />
+        </Box>
       </Box>
     </ThemeProvider>
   );
