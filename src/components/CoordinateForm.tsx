@@ -1,21 +1,8 @@
-import Autocomplete from "@mui/material/Autocomplete";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import CircularProgress from "@mui/material/CircularProgress";
-import Dialog from "@mui/material/Dialog";
-import DialogActions from "@mui/material/DialogActions";
-import DialogContent from "@mui/material/DialogContent";
-import DialogTitle from "@mui/material/DialogTitle";
-import IconButton from "@mui/material/IconButton";
-import List from "@mui/material/List";
-import ListItem from "@mui/material/ListItem";
-import ListItemButton from "@mui/material/ListItemButton";
-import ListItemText from "@mui/material/ListItemText";
 import Snackbar from "@mui/material/Snackbar";
-import TextField from "@mui/material/TextField";
-import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import {
   getAllCrsList,
   DEFAULT_CRS_CODE,
@@ -27,8 +14,14 @@ import {
   setStoredDefaultCrs,
 } from "../crs";
 import type { CRSOption } from "../crs";
+import { AddCoordinateDialog } from "./AddCoordinateDialog";
 import { CoordinateList } from "./CoordinateList";
-import { VirtualizedListbox } from "./VirtualizedListbox";
+import { FindBearingDialog } from "./FindBearingDialog";
+import { GpsAveragingDialog } from "./GpsAveragingDialog";
+import { NoteDialog } from "./NoteDialog";
+import { ProjectDialog } from "./ProjectDialog";
+import { RenameCoordinateDialog } from "./RenameCoordinateDialog";
+import { TransformCrsDialog } from "./TransformCrsDialog";
 import type { Coordinate } from "../types";
 
 const FALLBACK_LABELS = { first: "X", second: "Y" } as const;
@@ -55,45 +48,6 @@ interface CoordinateFormProps {
   onUpdateNote: (coordinateId: string, notes: string) => void;
   onFindBearing: (sourceCoordinateId: string, targetCoordinateId: string) => void;
   onDelete: (coordinateId: string) => void;
-}
-
-function LocationIcon() {
-  return (
-    <svg
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="currentColor"
-      aria-hidden="true"
-    >
-      <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
-    </svg>
-  );
-}
-
-/** Icon suggesting multiple measurements (stacked/ghosted location pins). */
-function GpsAveragingIcon() {
-  return (
-    <svg
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="currentColor"
-      aria-hidden="true"
-    >
-      <path
-        d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"
-        opacity="0.35"
-        transform="translate(-4, 0)"
-      />
-      <path
-        d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"
-        opacity="0.6"
-        transform="translate(4, 0)"
-      />
-      <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
-    </svg>
-  );
 }
 
 function optionForCode(code: string, options: CRSOption[]): CRSOption {
@@ -145,30 +99,22 @@ export function CoordinateForm({
   const [transformCoordinateId, setTransformCoordinateId] = useState<
     string | null
   >(null);
-  const [targetCrsCode, setTargetCrsCode] = useState(DEFAULT_CRS_CODE);
 
   const [projectDialogOpen, setProjectDialogOpen] = useState(false);
   const [projectCoordinateId, setProjectCoordinateId] = useState<
     string | null
   >(null);
-  const [bearing, setBearing] = useState("");
-  const [distance, setDistance] = useState("");
 
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
   const [renameCoordinateId, setRenameCoordinateId] = useState<string | null>(
     null
   );
-  const [renameValue, setRenameValue] = useState("");
 
   const [noteDialogOpen, setNoteDialogOpen] = useState(false);
   const [noteCoordinateId, setNoteCoordinateId] = useState<string | null>(null);
-  const [noteValue, setNoteValue] = useState("");
 
   const [findBearingDialogOpen, setFindBearingDialogOpen] = useState(false);
   const [findBearingSourceId, setFindBearingSourceId] = useState<string | null>(
-    null
-  );
-  const [findBearingTargetId, setFindBearingTargetId] = useState<string | null>(
     null
   );
 
@@ -178,13 +124,6 @@ export function CoordinateForm({
   const [geoSbOpen, setGeoSbOpen] = useState(false);
 
   const [gpsAveragingDialogOpen, setGpsAveragingDialogOpen] = useState(false);
-  const [gpsReadings, setGpsReadings] = useState<
-    { longitude: number; latitude: number }[]
-  >([]);
-  const gpsAveragingCancelledRef = useRef(false);
-  const gpsAveragingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
-    null
-  );
 
   const isWgs84Form = formCrsCode === DEFAULT_CRS_CODE;
   const geoAvailable =
@@ -320,187 +259,47 @@ export function CoordinateForm({
 
   const handleOpenTransform = (id: string) => {
     setTransformCoordinateId(id);
-    const coord = coordinates.find((c) => c.id === id);
-    const crsCode = coord?.crsCode ?? DEFAULT_CRS_CODE;
-    const targetOptions = options.filter((o) => o.code !== crsCode);
-    const firstOther = targetOptions[0];
-    const fallback =
-      crsCode === DEFAULT_CRS_CODE ? "3857" : DEFAULT_CRS_CODE;
-    setTargetCrsCode(firstOther ? firstOther.code : fallback);
     setTransformDialogOpen(true);
-  };
-  const handleTransformConfirm = () => {
-    if (transformCoordinateId) {
-      onTransform(transformCoordinateId, targetCrsCode);
-      setTransformDialogOpen(false);
-      setTransformCoordinateId(null);
-    }
   };
 
   const handleOpenProject = (id: string) => {
     setProjectCoordinateId(id);
-    setBearing("");
-    setDistance("");
     setProjectDialogOpen(true);
   };
-  const handleProjectConfirm = () => {
-    const b = parseFloat(bearing);
-    const d = parseFloat(distance);
-    if (
-      projectCoordinateId &&
-      Number.isFinite(b) &&
-      Number.isFinite(d) &&
-      d >= 0
-    ) {
-      onProject(projectCoordinateId, b, d);
-      setProjectDialogOpen(false);
-      setProjectCoordinateId(null);
-    }
-  };
-  const projectValid =
-    Number.isFinite(parseFloat(bearing)) &&
-    Number.isFinite(parseFloat(distance)) &&
-    parseFloat(distance) >= 0;
 
   const handleOpenRename = (id: string) => {
-    const coord = coordinates.find((c) => c.id === id);
     setRenameCoordinateId(id);
-    setRenameValue(coord?.name ?? "");
     setRenameDialogOpen(true);
-  };
-  const handleRenameConfirm = () => {
-    const trimmed = renameValue.trim();
-    if (renameCoordinateId && trimmed) {
-      onRename(renameCoordinateId, trimmed);
-      setRenameDialogOpen(false);
-      setRenameCoordinateId(null);
-      setRenameValue("");
-    }
   };
 
   const handleOpenNote = (id: string) => {
-    const coord = coordinates.find((c) => c.id === id);
     setNoteCoordinateId(id);
-    setNoteValue(coord?.notes ?? "");
     setNoteDialogOpen(true);
-  };
-  const handleNoteConfirm = () => {
-    if (noteCoordinateId != null) {
-      onUpdateNote(noteCoordinateId, noteValue);
-      setNoteDialogOpen(false);
-      setNoteCoordinateId(null);
-      setNoteValue("");
-    }
   };
 
   const handleOpenFindBearing = (id: string) => {
     setFindBearingSourceId(id);
-    setFindBearingTargetId(null);
     setFindBearingDialogOpen(true);
   };
-  const handleFindBearingConfirm = () => {
-    if (findBearingSourceId && findBearingTargetId) {
-      onFindBearing(findBearingSourceId, findBearingTargetId);
-      setFindBearingDialogOpen(false);
-      setFindBearingSourceId(null);
-      setFindBearingTargetId(null);
-    }
-  };
 
-  const handleOpenGpsAveraging = () => {
-    gpsAveragingCancelledRef.current = false;
-    setGpsReadings([]);
-    setGpsAveragingDialogOpen(true);
-  };
-
-  const handleCloseGpsAveraging = () => {
-    gpsAveragingCancelledRef.current = true;
-    if (gpsAveragingTimeoutRef.current != null) {
-      clearTimeout(gpsAveragingTimeoutRef.current);
-      gpsAveragingTimeoutRef.current = null;
-    }
-    setGpsAveragingDialogOpen(false);
-    setGpsReadings([]);
-  };
-
-  useEffect(() => {
-    if (!gpsAveragingDialogOpen || !navigator.geolocation) return;
-    const capture = () => {
-      if (gpsAveragingCancelledRef.current) return;
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          if (gpsAveragingCancelledRef.current) return;
-          const { longitude, latitude } = position.coords;
-          setGpsReadings((prev) => {
-            const next = [...prev, { longitude, latitude }];
-            if (next.length < 10) {
-              gpsAveragingTimeoutRef.current = setTimeout(capture, 5000);
-            }
-            return next;
-          });
-        },
-        () => {
-          if (!gpsAveragingCancelledRef.current) {
-            setGeoUnavailable(true);
-            setGeoSbOpen(true);
-            handleCloseGpsAveraging();
-          }
-        },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-      );
-    };
-    capture();
-    return () => {
-      gpsAveragingCancelledRef.current = true;
-      if (gpsAveragingTimeoutRef.current != null) {
-        clearTimeout(gpsAveragingTimeoutRef.current);
-        gpsAveragingTimeoutRef.current = null;
-      }
-    };
-  }, [gpsAveragingDialogOpen]);
-
-  useEffect(() => {
-    if (gpsReadings.length !== 10) return;
-    const avgLon =
-      gpsReadings.reduce((s, r) => s + r.longitude, 0) / gpsReadings.length;
-    const avgLat =
-      gpsReadings.reduce((s, r) => s + r.latitude, 0) / gpsReadings.length;
-    const formattedNotes = gpsReadings
-      .map(
-        (r, i) =>
-          `${i + 1}. ${r.longitude}, ${r.latitude}`
-      )
-      .join("\n");
+  const handleGpsAveragingComplete = (payload: {
+    longitude: number;
+    latitude: number;
+    notes: string;
+  }) => {
     onAddCoordinate({
       crsCode: formCrsCode,
-      x: avgLon,
-      y: avgLat,
+      x: payload.longitude,
+      y: payload.latitude,
       nameOverride: formName.trim() || undefined,
-      notes: formattedNotes,
+      notes: payload.notes,
     });
     setFormName("");
     setFormX("");
     setFormY("");
     setGpsAveragingDialogOpen(false);
-    setGpsReadings([]);
     onAddDialogClose();
-  }, [
-    gpsReadings,
-    formCrsCode,
-    formName,
-    onAddCoordinate,
-    onAddDialogClose,
-  ]);
-
-  const targetOptions =
-    transformCoordinateId != null
-      ? (() => {
-        const coord = coordinates.find((c) => c.id === transformCoordinateId);
-        const crsCode = coord?.crsCode ?? DEFAULT_CRS_CODE;
-        return options.filter((o) => o.code !== crsCode);
-      })()
-      : [];
-  const targetCrsValue = optionForCode(targetCrsCode, targetOptions);
+  };
 
   const labels = crsLabelsByCode[formCrsCode] ?? FALLBACK_LABELS;
 
@@ -543,501 +342,107 @@ export function CoordinateForm({
         />
       )}
 
-      <Dialog
+      <AddCoordinateDialog
         open={addDialogOpen}
         onClose={handleAddDialogClose}
-      >
-        <DialogTitle>Add coordinate</DialogTitle>
-        <DialogContent>
-          <Box sx={{ display: "flex", flexDirection: "column", gap: 2, pt: 1 }}>
-            <Autocomplete<CRSOption>
-              fullWidth
-              size="small"
-              options={options}
-              value={formCrsValue}
-              loading={crsLoading}
-              onOpen={loadCrsOptions}
-              getOptionLabel={(opt) => opt.label}
-              isOptionEqualToValue={(a, b) => a.code === b.code}
-              onChange={(_, newValue) => {
-                if (newValue) handleFormCrsChange(newValue.code);
-              }}
-              slots={{ listbox: VirtualizedListbox }}
-              renderOption={(props, option) => (
-                <li {...props}>
-                  <Box
-                    component="span"
-                    sx={{
-                      whiteSpace: "normal",
-                      wordBreak: "break-word",
-                      display: "block",
-                      lineHeight: 1.4,
-                      py: 0.5,
-                    }}
-                  >
-                    {option.label}
-                  </Box>
-                </li>
-              )}
-              renderInput={(params) => (
-                <TextField
-                  {...params}
-                  label="Coordinate reference system"
-                  slotProps={{
-                    input: {
-                      ...params.InputProps,
-                      endAdornment: (
-                        <>
-                          {crsLoading ? (
-                            <CircularProgress color="inherit" size={20} />
-                          ) : null}
-                          {params.InputProps.endAdornment}
-                        </>
-                      ),
-                    },
-                  }}
-                />
-              )}
-            />
-            <Box
-              sx={{
-                display: "flex",
-                gap: 2,
-                flexWrap: "wrap",
-                alignItems: "center",
-              }}
-            >
-              <TextField
-                label="Name"
-                size="small"
-                value={formName || nextSuggestedName}
-                onChange={(e) => setFormName(e.target.value)}
-              />
-              <TextField
-                label={labels.first}
-                type="number"
-                value={formX}
-                onChange={(e) => setFormX(e.target.value)}
-                size="small"
-                fullWidth
-                slotProps={{ htmlInput: { step: "any" } }}
-              />
-              <TextField
-                label={labels.second}
-                type="number"
-                value={formY}
-                onChange={(e) => setFormY(e.target.value)}
-                size="small"
-                fullWidth
-                slotProps={{ htmlInput: { step: "any" } }}
-              />
-              {isWgs84Form && (
-                <>
-                  <Tooltip
-                    title={
-                      geoPermissionDenied
-                        ? "Location services must be enabled for this site to use this feature"
-                        : "Use current location"
-                    }
-                  >
-                    <span>
-                      <IconButton
-                        color="primary"
-                        onClick={handleUseCurrentPosition}
-                        disabled={geoButtonDisabled}
-                        aria-label="Use current location"
-                        size="small"
-                        sx={{ flexShrink: 0 }}
-                      >
-                        {geoLoading ? (
-                          <CircularProgress color="inherit" size={24} />
-                        ) : (
-                          <LocationIcon />
-                        )}
-                      </IconButton>
-                    </span>
-                  </Tooltip>
-                  <Tooltip
-                    title={
-                      geoPermissionDenied
-                        ? "Location services must be enabled for this site to use this feature"
-                        : "GPS averaging (10 samples)"
-                    }
-                  >
-                    <span>
-                      <IconButton
-                        color="primary"
-                        onClick={handleOpenGpsAveraging}
-                        disabled={geoButtonDisabled}
-                        aria-label="GPS averaging (10 samples)"
-                        size="small"
-                        sx={{ flexShrink: 0 }}
-                      >
-                        <GpsAveragingIcon />
-                      </IconButton>
-                    </span>
-                  </Tooltip>
-                </>
-              )}
-            </Box>
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleAddDialogClose}>Cancel</Button>
-          <Button
-            variant="contained"
-            onClick={handleAddCoordinate}
-            disabled={!addValid}
-          >
-            Add
-          </Button>
-        </DialogActions>
-      </Dialog>
+        nextSuggestedName={nextSuggestedName}
+        formCrsValue={formCrsValue}
+        formName={formName}
+        formX={formX}
+        formY={formY}
+        options={options}
+        crsLoading={crsLoading}
+        loadCrsOptions={loadCrsOptions}
+        onFormCrsChange={handleFormCrsChange}
+        onFormNameChange={setFormName}
+        onFormXChange={setFormX}
+        onFormYChange={setFormY}
+        labels={labels}
+        addValid={addValid}
+        onAddCoordinate={handleAddCoordinate}
+        isWgs84Form={isWgs84Form}
+        geoButtonDisabled={geoButtonDisabled}
+        geoPermissionDenied={geoPermissionDenied}
+        onUseCurrentPosition={handleUseCurrentPosition}
+        geoLoading={geoLoading}
+        onOpenGpsAveraging={() => setGpsAveragingDialogOpen(true)}
+      />
 
-      <Dialog
+      <GpsAveragingDialog
         open={gpsAveragingDialogOpen}
-        onClose={handleCloseGpsAveraging}
-        aria-labelledby="gps-averaging-dialog-title"
-      >
-        <DialogTitle id="gps-averaging-dialog-title">
-          GPS Averaging
-        </DialogTitle>
-        <DialogContent>
-          <Box
-            sx={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: 2,
-              pt: 1,
-            }}
-          >
-            <Box sx={{ position: "relative", display: "inline-flex" }}>
-              <CircularProgress
-                variant="determinate"
-                value={(gpsReadings.length / 10) * 100}
-                size={56}
-              />
-              <Box
-                sx={{
-                  top: 0,
-                  left: 0,
-                  bottom: 0,
-                  right: 0,
-                  position: "absolute",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <Typography
-                  variant="caption"
-                  component="span"
-                  color="text.secondary"
-                >
-                  {`${gpsReadings.length} / 10`}
-                </Typography>
-              </Box>
-            </Box>
-            <List dense sx={{ width: "100%", maxHeight: 240, overflow: "auto" }}>
-              {Array.from({ length: 10 }, (_, i) => (
-                <ListItem key={i} disablePadding>
-                  <ListItemText
-                    primary={
-                      gpsReadings[i]
-                        ? `Longitude: ${gpsReadings[i].longitude}, Latitude: ${gpsReadings[i].latitude}`
-                        : " "
-                    }
-                    slotProps={{
-                      primary: {
-                        variant: "body2",
-                        color: gpsReadings[i]
-                          ? "text.primary"
-                          : "text.secondary",
-                      },
-                    }}
-                  />
-                </ListItem>
-              ))}
-            </List>
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseGpsAveraging}>Cancel</Button>
-        </DialogActions>
-      </Dialog>
+        onClose={() => setGpsAveragingDialogOpen(false)}
+        onComplete={handleGpsAveragingComplete}
+        onError={() => {
+          setGeoUnavailable(true);
+          setGeoSbOpen(true);
+        }}
+      />
 
-      <Dialog
+      <TransformCrsDialog
         open={transformDialogOpen}
         onClose={() => {
           setTransformDialogOpen(false);
           setTransformCoordinateId(null);
         }}
-      >
-        <DialogTitle>Transform to CRS</DialogTitle>
-        <DialogContent>
-          <Autocomplete<CRSOption>
-            fullWidth
-            size="small"
-            sx={{ mt: 1, minWidth: 280 }}
-            options={targetOptions}
-            value={targetCrsValue}
-            loading={crsLoading}
-            onOpen={loadCrsOptions}
-            getOptionLabel={(opt) => opt.label}
-            isOptionEqualToValue={(a, b) => a.code === b.code}
-            onChange={(_, newValue) => {
-              if (newValue) setTargetCrsCode(newValue.code);
-            }}
-            slots={{ listbox: VirtualizedListbox }}
-            renderOption={(props, option) => (
-              <li {...props}>
-                <Box
-                  component="span"
-                  sx={{
-                    whiteSpace: "normal",
-                    wordBreak: "break-word",
-                    display: "block",
-                    lineHeight: 1.4,
-                    py: 0.5,
-                  }}
-                >
-                  {option.label}
-                </Box>
-              </li>
-            )}
-            renderInput={(params) => (
-              <TextField
-                {...params}
-                label="Target CRS"
-                slotProps={{
-                  input: {
-                    ...params.InputProps,
-                    endAdornment: (
-                      <>
-                        {crsLoading ? (
-                          <CircularProgress color="inherit" size={20} />
-                        ) : null}
-                        {params.InputProps.endAdornment}
-                      </>
-                    ),
-                  },
-                }}
-              />
-            )}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button
-            onClick={() => {
-              setTransformDialogOpen(false);
-              setTransformCoordinateId(null);
-            }}
-          >
-            Cancel
-          </Button>
-          <Button onClick={handleTransformConfirm} variant="contained">
-            Transform
-          </Button>
-        </DialogActions>
-      </Dialog>
+        coordinateId={transformCoordinateId}
+        coordinates={coordinates}
+        options={options}
+        crsLoading={crsLoading}
+        loadCrsOptions={loadCrsOptions}
+        onTransform={onTransform}
+      />
 
-      <Dialog
+      <ProjectDialog
         open={projectDialogOpen}
         onClose={() => {
           setProjectDialogOpen(false);
           setProjectCoordinateId(null);
         }}
-      >
-        <DialogTitle>Project by bearing and distance</DialogTitle>
-        <DialogContent>
-          <Box
-            sx={{
-              display: "flex",
-              flexDirection: "column",
-              gap: 2,
-              mt: 1,
-              minWidth: 280,
-            }}
-          >
-            <TextField
-              label="Bearing (degrees from North)"
-              type="number"
-              value={bearing}
-              onChange={(e) => setBearing(e.target.value)}
-              size="small"
-              slotProps={{ htmlInput: { step: "any", min: 0, max: 360 } }}
-            />
-            <TextField
-              label="Distance"
-              type="number"
-              value={distance}
-              onChange={(e) => setDistance(e.target.value)}
-              size="small"
-              slotProps={{ htmlInput: { step: "any", min: 0 } }}
-            />
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button
-            onClick={() => {
-              setProjectDialogOpen(false);
-              setProjectCoordinateId(null);
-            }}
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={handleProjectConfirm}
-            variant="contained"
-            disabled={!projectValid}
-          >
-            Project
-          </Button>
-        </DialogActions>
-      </Dialog>
+        coordinateId={projectCoordinateId}
+        onProject={onProject}
+      />
 
-      <Dialog
+      <RenameCoordinateDialog
         open={renameDialogOpen}
         onClose={() => {
           setRenameDialogOpen(false);
           setRenameCoordinateId(null);
-          setRenameValue("");
         }}
-      >
-        <DialogTitle>Rename coordinate</DialogTitle>
-        <DialogContent>
-          <TextField
-            fullWidth
-            label="Name"
-            value={renameValue}
-            onChange={(e) => setRenameValue(e.target.value)}
-            size="small"
-            sx={{ mt: 1, minWidth: 280 }}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button
-            onClick={() => {
-              setRenameDialogOpen(false);
-              setRenameCoordinateId(null);
-              setRenameValue("");
-            }}
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={handleRenameConfirm}
-            variant="contained"
-            disabled={!renameValue.trim()}
-          >
-            Rename
-          </Button>
-        </DialogActions>
-      </Dialog>
+        coordinateId={renameCoordinateId}
+        initialName={
+          coordinates.find((c) => c.id === renameCoordinateId)?.name ?? ""
+        }
+        onRename={onRename}
+      />
 
-      <Dialog
+      <NoteDialog
         open={noteDialogOpen}
         onClose={() => {
           setNoteDialogOpen(false);
           setNoteCoordinateId(null);
-          setNoteValue("");
         }}
-      >
-        <DialogTitle>
-          {(coordinates.find((c) => c.id === noteCoordinateId)?.notes ?? "")
+        coordinateId={noteCoordinateId}
+        initialNote={
+          coordinates.find((c) => c.id === noteCoordinateId)?.notes ?? ""
+        }
+        title={
+          (coordinates.find((c) => c.id === noteCoordinateId)?.notes ?? "")
             ? "Edit note"
-            : "Add note"}
-        </DialogTitle>
-        <DialogContent>
-          <TextField
-            fullWidth
-            label="Note"
-            value={noteValue}
-            onChange={(e) => setNoteValue(e.target.value)}
-            size="small"
-            multiline
-            minRows={3}
-            sx={{ mt: 1, minWidth: 280 }}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button
-            onClick={() => {
-              setNoteDialogOpen(false);
-              setNoteCoordinateId(null);
-              setNoteValue("");
-            }}
-          >
-            Cancel
-          </Button>
-          <Button onClick={handleNoteConfirm} variant="contained">
-            Save
-          </Button>
-        </DialogActions>
-      </Dialog>
+            : "Add note"
+        }
+        onSave={onUpdateNote}
+      />
 
-      <Dialog
+      <FindBearingDialog
         open={findBearingDialogOpen}
         onClose={() => {
           setFindBearingDialogOpen(false);
           setFindBearingSourceId(null);
-          setFindBearingTargetId(null);
         }}
-      >
-        <DialogTitle>Find bearing</DialogTitle>
-        <DialogContent>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-            Select a coordinate (same CRS) to compute bearing and distance from
-            the current point:
-          </Typography>
-          {(() => {
-            const source = coordinates.find((c) => c.id === findBearingSourceId);
-            const sourceCrsCode = source?.crsCode ?? "";
-            const sameCrsCoords = coordinates.filter(
-              (c) => c.id !== findBearingSourceId && c.crsCode === sourceCrsCode
-            );
-            if (sameCrsCoords.length === 0) {
-              return (
-                <Typography variant="body2" color="text.secondary">
-                  No other coordinates with the same CRS.
-                </Typography>
-              );
-            }
-            return (
-              <List dense sx={{ minWidth: 280, maxHeight: 240, overflow: "auto" }}>
-                {sameCrsCoords.map((coord) => (
-                  <ListItemButton
-                    key={coord.id}
-                    selected={findBearingTargetId === coord.id}
-                    onClick={() => setFindBearingTargetId(coord.id)}
-                  >
-                    {coord.name}
-                  </ListItemButton>
-                ))}
-              </List>
-            );
-          })()}
-        </DialogContent>
-        <DialogActions>
-          <Button
-            onClick={() => {
-              setFindBearingDialogOpen(false);
-              setFindBearingSourceId(null);
-              setFindBearingTargetId(null);
-            }}
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={handleFindBearingConfirm}
-            variant="contained"
-            disabled={!findBearingTargetId}
-          >
-            Add to notes
-          </Button>
-        </DialogActions>
-      </Dialog>
+        sourceCoordinateId={findBearingSourceId}
+        coordinates={coordinates}
+        onConfirm={onFindBearing}
+      />
 
       <Snackbar
         open={geoSbOpen}
