@@ -11,7 +11,7 @@ import ListItemText from "@mui/material/ListItemText";
 import Typography from "@mui/material/Typography";
 import { useEffect, useRef, useState } from "react";
 
-const GPS_AVERAGING_READING_COUNT = 10;
+const GPS_AVERAGING_READING_COUNT = 20;
 
 export interface GpsAveragingResult {
   longitude: number;
@@ -93,8 +93,8 @@ export function GpsAveragingDialog({
       readings.reduce((s, r) => s + r.longitude, 0) / readings.length;
     const avgLat =
       readings.reduce((s, r) => s + r.latitude, 0) / readings.length;
-    const notes = readings
-      .map((r, i) => `${i + 1}. ${r.longitude}, ${r.latitude}`)
+    const notes = 'GPS Averaging:\n' + readings
+      .map((r) => `${r.longitude}, ${r.latitude}`)
       .join("\n");
     onComplete({ longitude: avgLon, latitude: avgLat, notes });
     cancelledRef.current = true;
@@ -158,7 +158,7 @@ export function GpsAveragingDialog({
                 <ListItemText
                   primary={
                     readings[i]
-                      ? `Longitude: ${readings[i].longitude}, Latitude: ${readings[i].latitude}`
+                      ? `${readings[i].longitude}, ${readings[i].latitude}`
                       : " "
                   }
                   slotProps={{
