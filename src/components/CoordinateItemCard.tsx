@@ -1,6 +1,7 @@
 import Box from "@mui/material/Box";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
+import Chip from "@mui/material/Chip";
 import IconButton from "@mui/material/IconButton";
 import ListItemText from "@mui/material/ListItemText";
 import Menu from "@mui/material/Menu";
@@ -8,7 +9,7 @@ import MenuItem from "@mui/material/MenuItem";
 import Typography from "@mui/material/Typography";
 import MoreVert from "@mui/icons-material/MoreVert";
 import { useState } from "react";
-import type { Coordinate } from "../types";
+import type { Coordinate, CardType } from "../types";
 import type { AxisLabels } from "./CoordinateForm";
 import { CoordinateCard } from "./CoordinateCard";
 
@@ -71,6 +72,17 @@ export function CoordinateItemCard({
     onDelete(coordinate.id);
   };
 
+  const cardType: CardType = coordinate.cardType ?? "manual";
+  const chipConfig: Record<
+    CardType,
+    { label: string; bgcolor: string }
+  > = {
+    manual: { label: "Manual", bgcolor: "#fdd835" },
+    project: { label: "Project", bgcolor: "#42a5f5" },
+    transform: { label: "Transform", bgcolor: "#66bb6a" },
+  };
+  const { label: chipLabel, bgcolor: chipBg } = chipConfig[cardType];
+
   return (
     <>
       <Card variant="outlined" sx={{ minWidth: 280 }}>
@@ -86,17 +98,28 @@ export function CoordinateItemCard({
             <Typography variant="h6" component="h3" gutterBottom>
               {coordinate.name}
             </Typography>
-            <IconButton
-              id={`coordinate-card-menu-button-${coordinate.id}`}
-              size="small"
-              onClick={handleMenuOpen}
-              aria-label="Actions"
-              aria-controls={menuOpen ? `coordinate-card-menu-${coordinate.id}` : undefined}
-              aria-haspopup="true"
-              aria-expanded={menuOpen ? "true" : undefined}
-            >
-              <MoreVert fontSize="small" />
-            </IconButton>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+              <Chip
+                label={chipLabel}
+                size="small"
+                sx={{
+                  backgroundColor: chipBg,
+                  color: "rgba(0,0,0,0.87)",
+                  fontWeight: 500,
+                }}
+              />
+              <IconButton
+                id={`coordinate-card-menu-button-${coordinate.id}`}
+                size="small"
+                onClick={handleMenuOpen}
+                aria-label="Actions"
+                aria-controls={menuOpen ? `coordinate-card-menu-${coordinate.id}` : undefined}
+                aria-haspopup="true"
+                aria-expanded={menuOpen ? "true" : undefined}
+              >
+                <MoreVert fontSize="small" />
+              </IconButton>
+            </Box>
           </Box>
           <Box
             sx={{
@@ -155,11 +178,25 @@ export function CoordinateItemCard({
         transformOrigin={{ vertical: "top", horizontal: "right" }}
         slotProps={{ list: { "aria-labelledby": `coordinate-card-menu-button-${coordinate.id}` } }}
       >
-        <MenuItem onClick={handleTransform}>
+        <MenuItem
+          onClick={handleTransform}
+          sx={{
+            backgroundColor: "#66bb6a",
+            color: "rgba(0,0,0,0.87)",
+            "&:hover": { backgroundColor: "rgba(102, 187, 106, 0.9)" },
+          }}
+        >
           <ListItemText primary="Transform" />
         </MenuItem>
         {canProject && (
-          <MenuItem onClick={handleProject}>
+          <MenuItem
+            onClick={handleProject}
+            sx={{
+              backgroundColor: "#42a5f5",
+              color: "rgba(0,0,0,0.87)",
+              "&:hover": { backgroundColor: "rgba(66, 165, 245, 0.9)" },
+            }}
+          >
             <ListItemText primary="Project" />
           </MenuItem>
         )}

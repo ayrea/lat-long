@@ -17,6 +17,9 @@ import type { Coordinate } from "./types";
 const COLOR_MODE_STORAGE_KEY = "lat-long-color-mode";
 
 function generateId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
@@ -98,6 +101,7 @@ export default function App() {
           crsCode: payload.crsCode,
           x: payload.x,
           y: payload.y,
+          cardType: "manual" as const,
           ...(payload.notes != null && payload.notes !== ""
             ? { notes: payload.notes }
             : {}),
@@ -140,6 +144,7 @@ export default function App() {
             crsCode: targetCrsCode,
             x: outX,
             y: outY,
+            cardType: "transform" as const,
           },
         ]);
       } catch (e) {
@@ -171,6 +176,7 @@ export default function App() {
             crsCode: source.crsCode,
             x: easting,
             y: northing,
+            cardType: "project" as const,
           },
         ]);
       } catch (e) {

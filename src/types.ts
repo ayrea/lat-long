@@ -3,9 +3,12 @@ export interface Coord {
   y: number;
 }
 
+/** How the coordinate card was created; used for display (chip) and tracking. */
+export type CardType = "manual" | "project" | "transform";
+
 /** A single coordinate entry managed by the app. */
 export interface Coordinate {
-  /** Stable identifier for React keys and lookups. */
+  /** UUID used for internal tracking and React keys; distinct from the user-visible name. */
   id: string;
   /** User-visible unique name, e.g. "1", "PointA", "Point1_Transform". */
   name: string;
@@ -15,6 +18,8 @@ export interface Coordinate {
   x: number;
   /** Y / latitude / northing value (depends on CRS). */
   y: number;
+  /** How this card was created: manual entry, Project action, or Transform action. */
+  cardType: CardType;
   /** Optional user note for this coordinate. */
   notes?: string;
 }
