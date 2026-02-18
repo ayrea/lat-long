@@ -177,6 +177,7 @@ export default function App() {
             x: easting,
             y: northing,
             cardType: "project" as const,
+            notes: `Projected from ${source.name}: bearing ${bearing.toFixed(1)}°, distance ${distance.toFixed(2)} units`,
           },
         ]);
       } catch (e) {
