@@ -256,8 +256,9 @@ export default function App() {
         crsNameByCode[code] = info?.name ?? "";
       })
     );
-    const headers = ["Name", "CRS Code", "CRS Name", "X", "Y", "Notes"];
+    const headers = ["Id", "Name", "CRS Code", "CRS Name", "X", "Y", "Notes"];
     const rows = coordinates.map((c) => [
+      c.id,
       c.name,
       c.crsCode,
       crsNameByCode[c.crsCode] ?? "",
