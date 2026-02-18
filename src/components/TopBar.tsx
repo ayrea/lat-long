@@ -8,7 +8,7 @@ import Typography from "@mui/material/Typography";
 import { useState } from "react";
 import type { ColorMode } from "../theme";
 import { AboutDialog } from "./AboutDialog";
-import { ResetDialog } from "./ResetDialog";
+import { ConfirmationDialog } from "./ConfirmationDialog";
 
 function MenuIcon() {
   return (
@@ -140,10 +140,13 @@ export function TopBar({
           <ListItemText primary="About" />
         </MenuItem>
       </Menu>
-      <ResetDialog
+      <ConfirmationDialog
         open={resetOpen}
         onClose={handleResetCancel}
         onConfirm={handleResetConfirm}
+        title="Reset"
+        contentText="Are you sure? This will clear all coordinates and reset the application to the starting state."
+        confirmButtonText="Reset"
       />
       <AboutDialog open={aboutOpen} onClose={() => setAboutOpen(false)} />
     </>

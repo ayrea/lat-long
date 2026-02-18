@@ -15,6 +15,7 @@ import {
 } from "../crs";
 import type { CRSOption } from "../crs";
 import { AddCoordinateDialog } from "./AddCoordinateDialog";
+import { ConfirmationDialog } from "./ConfirmationDialog";
 import { CoordinateList } from "./CoordinateList";
 import { FindBearingDialog } from "./FindBearingDialog";
 import { GpsAveragingDialog } from "./GpsAveragingDialog";
@@ -117,6 +118,9 @@ export function CoordinateForm({
   const [findBearingSourceId, setFindBearingSourceId] = useState<string | null>(
     null
   );
+
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
   const [geoLoading, setGeoLoading] = useState(false);
   const [geoUnavailable, setGeoUnavailable] = useState(false);
@@ -282,6 +286,24 @@ export function CoordinateForm({
     setFindBearingDialogOpen(true);
   };
 
+  const handleDeleteRequest = (id: string) => {
+    setPendingDeleteId(id);
+    setDeleteConfirmOpen(true);
+  };
+
+  const handleDeleteConfirm = () => {
+    if (pendingDeleteId) {
+      onDelete(pendingDeleteId);
+      setPendingDeleteId(null);
+    }
+    setDeleteConfirmOpen(false);
+  };
+
+  const handleDeleteCancel = () => {
+    setDeleteConfirmOpen(false);
+    setPendingDeleteId(null);
+  };
+
   const handleGpsAveragingComplete = (payload: {
     longitude: number;
     latitude: number;
@@ -338,7 +360,7 @@ export function CoordinateForm({
           onRename={handleOpenRename}
           onAddNote={handleOpenNote}
           onFindBearing={handleOpenFindBearing}
-          onDelete={onDelete}
+          onDelete={handleDeleteRequest}
         />
       )}
 
@@ -442,6 +464,15 @@ export function CoordinateForm({
         sourceCoordinateId={findBearingSourceId}
         coordinates={coordinates}
         onConfirm={onFindBearing}
+      />
+
+      <ConfirmationDialog
+        open={deleteConfirmOpen}
+        onClose={handleDeleteCancel}
+        onConfirm={handleDeleteConfirm}
+        title="Delete coordinate"
+        contentText="Are you sure you want to delete this coordinate? This cannot be undone."
+        confirmButtonText="Delete"
       />
 
       <Snackbar

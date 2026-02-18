@@ -5,26 +5,35 @@ import DialogContent from "@mui/material/DialogContent";
 import DialogContentText from "@mui/material/DialogContentText";
 import DialogTitle from "@mui/material/DialogTitle";
 
-interface ResetDialogProps {
+interface ConfirmationDialogProps {
   open: boolean;
   onClose: () => void;
   onConfirm: () => void;
+  title: string;
+  contentText: string;
+  confirmButtonText?: string;
+  confirmButtonColor?: "error" | "primary" | "inherit";
 }
 
-export function ResetDialog({ open, onClose, onConfirm }: ResetDialogProps) {
+export function ConfirmationDialog({
+  open,
+  onClose,
+  onConfirm,
+  title,
+  contentText,
+  confirmButtonText = "Confirm",
+  confirmButtonColor = "error",
+}: ConfirmationDialogProps) {
   return (
     <Dialog open={open} onClose={onClose}>
-      <DialogTitle>Reset</DialogTitle>
+      <DialogTitle>{title}</DialogTitle>
       <DialogContent>
-        <DialogContentText>
-          Are you sure? This will clear all coordinates and reset the
-          application to the starting state.
-        </DialogContentText>
+        <DialogContentText>{contentText}</DialogContentText>
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Cancel</Button>
-        <Button onClick={onConfirm} color="error" variant="contained">
-          Reset
+        <Button onClick={onConfirm} color={confirmButtonColor} variant="contained">
+          {confirmButtonText}
         </Button>
       </DialogActions>
     </Dialog>
