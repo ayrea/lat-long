@@ -11,6 +11,8 @@ import ListItemText from "@mui/material/ListItemText";
 import Typography from "@mui/material/Typography";
 import { useEffect, useRef, useState } from "react";
 
+const GPS_AVERAGING_READING_COUNT = 10;
+
 export interface GpsAveragingResult {
   longitude: number;
   latitude: number;
@@ -59,8 +61,8 @@ export function GpsAveragingDialog({
           const { longitude, latitude } = position.coords;
           setReadings((prev) => {
             const next = [...prev, { longitude, latitude }];
-            if (next.length < 10) {
-              timeoutRef.current = setTimeout(capture, 5000);
+            if (next.length < GPS_AVERAGING_READING_COUNT) {
+              timeoutRef.current = setTimeout(capture, 2000);
             }
             return next;
           });
@@ -86,7 +88,7 @@ export function GpsAveragingDialog({
   }, [open]);
 
   useEffect(() => {
-    if (readings.length !== 10) return;
+    if (readings.length !== GPS_AVERAGING_READING_COUNT) return;
     const avgLon =
       readings.reduce((s, r) => s + r.longitude, 0) / readings.length;
     const avgLat =
@@ -126,7 +128,7 @@ export function GpsAveragingDialog({
           <Box sx={{ position: "relative", display: "inline-flex" }}>
             <CircularProgress
               variant="determinate"
-              value={(readings.length / 10) * 100}
+              value={(readings.length / GPS_AVERAGING_READING_COUNT) * 100}
               size={56}
             />
             <Box
@@ -146,12 +148,12 @@ export function GpsAveragingDialog({
                 component="span"
                 color="text.secondary"
               >
-                {`${readings.length} / 10`}
+                {`${readings.length} / ${GPS_AVERAGING_READING_COUNT}`}
               </Typography>
             </Box>
           </Box>
           <List dense sx={{ width: "100%", maxHeight: 240, overflow: "auto" }}>
-            {Array.from({ length: 10 }, (_, i) => (
+            {Array.from({ length: GPS_AVERAGING_READING_COUNT }, (_, i) => (
               <ListItem key={i} disablePadding>
                 <ListItemText
                   primary={
