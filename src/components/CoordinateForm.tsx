@@ -24,6 +24,7 @@ import { ProjectDialog } from "./ProjectDialog";
 import { RenameCoordinateDialog } from "./RenameCoordinateDialog";
 import { TransformCrsDialog } from "./TransformCrsDialog";
 import type { Coordinate } from "../types";
+import { getCurrentPosition, isGeolocationAvailable } from "../geolocation";
 
 const FALLBACK_LABELS = { first: "X", second: "Y" } as const;
 
@@ -130,8 +131,7 @@ export function CoordinateForm({
   const [gpsAveragingDialogOpen, setGpsAveragingDialogOpen] = useState(false);
 
   const isWgs84Form = formCrsCode === DEFAULT_CRS_CODE;
-  const geoAvailable =
-    typeof navigator !== "undefined" && !!navigator.geolocation;
+  const geoAvailable = isGeolocationAvailable();
   const geoButtonDisabled =
     !geoAvailable ||
     geoUnavailable ||
@@ -218,9 +218,9 @@ export function CoordinateForm({
   const formCrsValue = optionForCode(formCrsCode, options);
 
   const handleUseCurrentPosition = () => {
-    if (!navigator.geolocation || geoButtonDisabled) return;
+    if (!isGeolocationAvailable() || geoButtonDisabled) return;
     setGeoLoading(true);
-    navigator.geolocation.getCurrentPosition(
+    getCurrentPosition(
       (position) => {
         setFormX(String(position.coords.longitude));
         setFormY(String(position.coords.latitude));

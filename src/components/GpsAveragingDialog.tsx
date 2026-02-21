@@ -10,6 +10,7 @@ import ListItem from "@mui/material/ListItem";
 import ListItemText from "@mui/material/ListItemText";
 import Typography from "@mui/material/Typography";
 import { useEffect, useRef, useState } from "react";
+import { getCurrentPosition, isGeolocationAvailable } from "../geolocation";
 
 const GPS_AVERAGING_READING_COUNT = 20;
 
@@ -37,6 +38,7 @@ export function GpsAveragingDialog({
   >([]);
   const cancelledRef = useRef(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const readingsCountRef = useRef(0);
 
   const handleClose = () => {
     cancelledRef.current = true;
@@ -49,23 +51,25 @@ export function GpsAveragingDialog({
   };
 
   useEffect(() => {
-    if (!open || !navigator.geolocation) return;
+    if (!open || !isGeolocationAvailable()) return;
     cancelledRef.current = false;
+    readingsCountRef.current = 0;
     setReadings([]);
 
     const capture = () => {
       if (cancelledRef.current) return;
-      navigator.geolocation.getCurrentPosition(
+      getCurrentPosition(
         (position) => {
           if (cancelledRef.current) return;
           const { longitude, latitude } = position.coords;
-          setReadings((prev) => {
-            const next = [...prev, { longitude, latitude }];
-            if (next.length < GPS_AVERAGING_READING_COUNT) {
-              timeoutRef.current = setTimeout(capture, 2000);
-            }
-            return next;
-          });
+          setReadings((prev) => [...prev, { longitude, latitude }]);
+          readingsCountRef.current += 1;
+          if (
+            readingsCountRef.current < GPS_AVERAGING_READING_COUNT &&
+            !cancelledRef.current
+          ) {
+            timeoutRef.current = setTimeout(capture, 2000);
+          }
         },
         () => {
           if (!cancelledRef.current) {
