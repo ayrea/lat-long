@@ -1,17 +1,19 @@
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import CircularProgress from "@mui/material/CircularProgress";
 import Dialog from "@mui/material/Dialog";
 import DialogActions from "@mui/material/DialogActions";
 import DialogContent from "@mui/material/DialogContent";
 import DialogTitle from "@mui/material/DialogTitle";
+import LinearProgress from "@mui/material/LinearProgress";
 import Typography from "@mui/material/Typography";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { getCurrentPosition, isGeolocationAvailable } from "../geolocation";
+import { useEffect, useRef, useState } from "react";
+import {
+  getAccuratePosition,
+  isGeolocationAvailable,
+  type AccuratePositionProgress,
+  type AccuratePositionResult,
+} from "../geolocation";
 import { GpsAverageCoordinates } from "./GpsAverageCoordinates";
-
-const GPS_AVERAGING_READING_COUNT = 10;
-const EXTRA_CAPTURE_COUNT = 5;
 
 export interface GpsAveragingResult {
   longitude: number;
@@ -26,153 +28,98 @@ interface GpsAveragingDialogProps {
   onError?: () => void;
 }
 
+const WARMUP_MS = 30_000;
+const COLLECTION_MS = 60_000;
+const TOTAL_MS = WARMUP_MS + COLLECTION_MS;
+
 export function GpsAveragingDialog({
   open,
   onClose,
   onComplete,
   onError,
 }: GpsAveragingDialogProps) {
+  const [progress, setProgress] = useState<AccuratePositionProgress | null>(
+    null
+  );
+  const [result, setResult] = useState<AccuratePositionResult | null>(null);
   const [readings, setReadings] = useState<
     { longitude: number; latitude: number }[]
   >([]);
-  const [targetReadingCount, setTargetReadingCount] = useState(
-    GPS_AVERAGING_READING_COUNT
-  );
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
-  const [isCapturingExtra, setIsCapturingExtra] = useState(false);
-  const cancelledRef = useRef(false);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const extraTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const readingsCountRef = useRef(0);
+  const cancelRef = useRef<(() => void) | null>(null);
 
-  const average = useMemo(() => {
-    if (readings.length === 0) return null;
-    const avgLon =
-      readings.reduce((s, r) => s + r.longitude, 0) / readings.length;
-    const avgLat =
-      readings.reduce((s, r) => s + r.latitude, 0) / readings.length;
-    return { longitude: avgLon, latitude: avgLat };
-  }, [readings]);
+  const currentAverage =
+    progress?.currentAverage ??
+    (result != null ? { latitude: result.latitude, longitude: result.longitude } : null);
 
   const handleClose = () => {
-    cancelledRef.current = true;
-    if (timeoutRef.current != null) {
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
+    if (cancelRef.current) {
+      cancelRef.current();
+      cancelRef.current = null;
     }
-    if (extraTimeoutRef.current != null) {
-      clearTimeout(extraTimeoutRef.current);
-      extraTimeoutRef.current = null;
-    }
+    setProgress(null);
+    setResult(null);
     setReadings([]);
     setSelectedIndex(null);
-    setIsCapturingExtra(false);
     onClose();
   };
 
   const handleDone = () => {
-    if (readings.length === 0 || average == null) return;
+    if (result == null) return;
     const notes =
-      "GPS Averaging:\n" +
-      readings.map((r) => `${r.longitude}, ${r.latitude}`).join("\n");
-    onComplete({ longitude: average.longitude, latitude: average.latitude, notes });
-    cancelledRef.current = true;
-    if (timeoutRef.current != null) {
-      clearTimeout(timeoutRef.current);
-      timeoutRef.current = null;
-    }
-    setReadings([]);
-    setSelectedIndex(null);
-    onClose();
-  };
-
-  const handleRemoveSelected = () => {
-    if (selectedIndex === null) return;
-    setReadings((prev) => prev.filter((_, i) => i !== selectedIndex));
-    setTargetReadingCount((prev) => prev - 1);
-    setSelectedIndex(null);
-  };
-
-  const handleAddFive = () => {
-    if (readings.length < targetReadingCount || isCapturingExtra)
-      return;
-    setTargetReadingCount((prev) => prev + EXTRA_CAPTURE_COUNT);
-    setIsCapturingExtra(true);
-    let count = 0;
-    const captureNext = () => {
-      getCurrentPosition(
-        (position) => {
-          const { longitude, latitude } = position.coords;
-          setReadings((prev) => [...prev, { longitude, latitude }]);
-          count += 1;
-          if (count < EXTRA_CAPTURE_COUNT) {
-            extraTimeoutRef.current = setTimeout(captureNext, 2000);
-          } else {
-            if (extraTimeoutRef.current != null) {
-              clearTimeout(extraTimeoutRef.current);
-              extraTimeoutRef.current = null;
-            }
-            setIsCapturingExtra(false);
-          }
-        },
-        () => {
-          if (extraTimeoutRef.current != null) {
-            clearTimeout(extraTimeoutRef.current);
-            extraTimeoutRef.current = null;
-          }
-          onError?.();
-          setIsCapturingExtra(false);
-        },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-      );
-    };
-    captureNext();
+      `Accurate GPS: ${result.samplesUsed} samples over 60s, weighted by 1/accuracy². Discarded: ${result.samplesDiscarded}.`;
+    onComplete({
+      longitude: result.longitude,
+      latitude: result.latitude,
+      notes,
+    });
+    handleClose();
   };
 
   useEffect(() => {
     if (!open || !isGeolocationAvailable()) return;
-    cancelledRef.current = false;
-    readingsCountRef.current = 0;
+    setProgress({
+      phase: "warmup",
+      warmupRemainingMs: WARMUP_MS,
+      samplesAccepted: 0,
+      samplesDiscarded: 0,
+      latestAccuracy: null,
+      currentAverage: null,
+    });
+    setResult(null);
     setReadings([]);
-    setTargetReadingCount(GPS_AVERAGING_READING_COUNT);
 
-    const capture = () => {
-      if (cancelledRef.current) return;
-      getCurrentPosition(
-        (position) => {
-          if (cancelledRef.current) return;
-          const { longitude, latitude } = position.coords;
-          setReadings((prev) => [...prev, { longitude, latitude }]);
-          readingsCountRef.current += 1;
-          if (
-            readingsCountRef.current < GPS_AVERAGING_READING_COUNT &&
-            !cancelledRef.current
-          ) {
-            timeoutRef.current = setTimeout(capture, 2000);
-          }
-        },
-        () => {
-          if (!cancelledRef.current) {
-            onError?.();
-            handleClose();
-          }
-        },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-      );
-    };
-    capture();
+    cancelRef.current = getAccuratePosition({
+      onProgress: setProgress,
+      onSampleAccepted: (reading) => {
+        setReadings((prev) => [...prev, reading]);
+      },
+      onSuccess: (res) => {
+        setResult(res);
+        setProgress(null);
+      },
+      onError: () => {
+        onError?.();
+        handleClose();
+      },
+    });
 
     return () => {
-      cancelledRef.current = true;
-      if (timeoutRef.current != null) {
-        clearTimeout(timeoutRef.current);
-        timeoutRef.current = null;
+      if (cancelRef.current) {
+        cancelRef.current();
+        cancelRef.current = null;
       }
     };
   }, [open]);
 
-  const actionsDisabled =
-    readings.length < targetReadingCount || isCapturingExtra;
+  const progressPercent =
+    progress != null
+      ? progress.phase === "warmup"
+        ? (1 - (progress.warmupRemainingMs ?? 0) / WARMUP_MS) * (WARMUP_MS / TOTAL_MS) * 100
+        : (WARMUP_MS / TOTAL_MS) * 100 +
+          ((progress.collectingElapsedMs ?? 0) / COLLECTION_MS) *
+            (COLLECTION_MS / TOTAL_MS) * 100
+      : 100;
 
   return (
     <Dialog
@@ -193,48 +140,58 @@ export function GpsAveragingDialog({
             pt: 1,
           }}
         >
-          <Box sx={{ position: "relative", display: "inline-flex" }}>
-            <CircularProgress
+          <Box sx={{ width: "100%", maxWidth: 320 }}>
+            <LinearProgress
               variant="determinate"
-              value={Math.min(
-                100,
-                (readings.length / targetReadingCount) * 100
-              )}
-              size={56}
+              value={Math.min(100, progressPercent)}
+              sx={{ height: 8, borderRadius: 1 }}
             />
-            <Box
-              sx={{
-                top: 0,
-                left: 0,
-                bottom: 0,
-                right: 0,
-                position: "absolute",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Typography
-                variant="caption"
-                component="span"
-                color="text.secondary"
-              >
-                {`${readings.length} / ${targetReadingCount}`}
-              </Typography>
-            </Box>
+            <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
+              {progress?.phase === "warmup"
+                ? `Warming up… ${Math.ceil((progress.warmupRemainingMs ?? 0) / 1000)} s remaining`
+                : progress?.phase === "collecting"
+                  ? `Collecting… ${Math.floor((progress.collectingElapsedMs ?? 0) / 1000)} s / 60 s`
+                  : result != null
+                    ? "Complete"
+                    : "Starting…"}
+            </Typography>
           </Box>
+
+          {progress != null && (
+            <>
+              <Box
+                sx={{
+                  display: "flex",
+                  gap: 2,
+                  flexWrap: "wrap",
+                  justifyContent: "center",
+                }}
+              >
+                <Typography variant="body2" color="text.secondary">
+                  Accepted: {progress.samplesAccepted}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Discarded: {progress.samplesDiscarded}
+                </Typography>
+                {progress.latestAccuracy != null && (
+                  <Typography variant="body2" color="text.secondary">
+                    Current accuracy: {progress.latestAccuracy.toFixed(1)} m
+                  </Typography>
+                )}
+              </Box>
+              <Typography variant="caption" color="text.secondary">
+                Only samples with accuracy ≤ 10 m are used.
+              </Typography>
+            </>
+          )}
+
           <Typography variant="body2" color="text.secondary">
-            Last:{" "}
-            {readings.length > 0
-              ? `${readings[readings.length - 1].longitude}, ${readings[readings.length - 1].latitude}`
-              : "Waiting for first reading..."}
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Avg:{" "}
-            {average != null
-              ? `${average.longitude}, ${average.latitude}`
+            Weighted average:{" "}
+            {currentAverage != null
+              ? `${currentAverage.longitude}, ${currentAverage.latitude}`
               : "—"}
           </Typography>
+
           <Box border={1} borderColor="divider" borderRadius={1}>
             <GpsAverageCoordinates
               readings={readings}
@@ -242,31 +199,17 @@ export function GpsAveragingDialog({
               height={200}
               selectedIndex={selectedIndex}
               onSelect={setSelectedIndex}
-              average={average}
+              average={currentAverage}
             />
           </Box>
-          <Button
-            size="small"
-            color="primary"
-            onClick={handleRemoveSelected}
-            disabled={selectedIndex === null}
-          >
-            Remove selected
-          </Button>
         </Box>
       </DialogContent>
       <DialogActions>
         <Button onClick={handleClose}>Cancel</Button>
         <Button
-          onClick={handleAddFive}
-          disabled={actionsDisabled}
-        >
-          +5
-        </Button>
-        <Button
           variant="contained"
           onClick={handleDone}
-          disabled={actionsDisabled}
+          disabled={result == null}
         >
           Done
         </Button>
