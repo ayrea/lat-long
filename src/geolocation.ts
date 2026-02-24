@@ -29,14 +29,47 @@ const MOCK_LOCATIONS: { latitude: number; longitude: number }[] = [
 
 let mockIndex = 0;
 
-function createMockPosition(loc: {
+const WARMUP_MS = 30_000;
+const COLLECTION_MS = 60_000;
+const MAX_ACCURACY_M = 10;
+
+export interface AccuratePositionProgress {
+  phase: "warmup" | "collecting";
+  warmupRemainingMs?: number;
+  collectingElapsedMs?: number;
+  collectingTotalMs?: number;
+  samplesAccepted: number;
+  samplesDiscarded: number;
+  latestAccuracy: number | null;
+  currentAverage: { latitude: number; longitude: number } | null;
+}
+
+export interface AccuratePositionResult {
   latitude: number;
   longitude: number;
-}): GeolocationPosition {
+  samplesUsed: number;
+  samplesDiscarded: number;
+  durationMs: number;
+}
+
+export interface GetAccuratePositionOptions {
+  onProgress?: (progress: AccuratePositionProgress) => void;
+  onSampleAccepted?: (reading: {
+    latitude: number;
+    longitude: number;
+  }) => void;
+  onSuccess: (result: AccuratePositionResult) => void;
+  onError: (error: GeolocationPositionError) => void;
+}
+
+function createMockPosition(
+  loc: { latitude: number; longitude: number },
+  accuracy = 0
+): GeolocationPosition {
   const coords = {
     latitude: loc.latitude,
     longitude: loc.longitude,
-    accuracy: 0,
+    accuracy,
     altitude: null,
     altitudeAccuracy: null,
     heading: null,
@@ -87,4 +120,253 @@ export function getCurrentPosition(
     error ?? (() => { }),
     options
   );
+}
+
+function computeWeightedAverage(
+  samples: { latitude: number; longitude: number; accuracy: number }[]
+): { latitude: number; longitude: number } | null {
+  if (samples.length === 0) return null;
+  let sumWeight = 0;
+  let sumLat = 0;
+  let sumLon = 0;
+  for (const s of samples) {
+    const w = 1 / (s.accuracy * s.accuracy);
+    sumWeight += w;
+    sumLat += s.latitude * w;
+    sumLon += s.longitude * w;
+  }
+  if (sumWeight === 0) return null;
+  return {
+    latitude: sumLat / sumWeight,
+    longitude: sumLon / sumWeight,
+  };
+}
+
+export function getAccuratePosition(
+  options: GetAccuratePositionOptions
+): () => void {
+  const { onProgress, onSampleAccepted, onSuccess, onError } = options;
+
+  if (import.meta.env.DEV) {
+    return runAccuratePositionMock(
+      onProgress,
+      onSampleAccepted,
+      onSuccess,
+      onError
+    );
+  }
+
+  if (typeof navigator === "undefined" || !navigator.geolocation) {
+    onError({
+      code: 2,
+      message: "Geolocation not available",
+      PERMISSION_DENIED: 1,
+      POSITION_UNAVAILABLE: 2,
+      TIMEOUT: 3,
+    });
+    return () => {};
+  }
+
+  const samples: { latitude: number; longitude: number; accuracy: number }[] = [];
+  let samplesDiscarded = 0;
+  let latestAccuracy: number | null = null;
+  let cancelled = false;
+  let watchId: number | undefined;
+  let warmupEndMs: number | undefined;
+  let collectionEndMs: number | undefined;
+
+  const reportProgress = (phase: "warmup" | "collecting") => {
+    if (cancelled || !onProgress) return;
+    const now = Date.now();
+    if (phase === "warmup" && warmupEndMs != null) {
+      onProgress({
+        phase: "warmup",
+        warmupRemainingMs: Math.max(0, warmupEndMs - now),
+        samplesAccepted: 0,
+        samplesDiscarded: 0,
+        latestAccuracy: null,
+        currentAverage: null,
+      });
+    } else if (phase === "collecting" && collectionEndMs != null) {
+      onProgress({
+        phase: "collecting",
+        collectingElapsedMs: now - (warmupEndMs ?? now),
+        collectingTotalMs: COLLECTION_MS,
+        samplesAccepted: samples.length,
+        samplesDiscarded,
+        latestAccuracy,
+        currentAverage: computeWeightedAverage(samples),
+      });
+    }
+  };
+
+  const tick = () => {
+    if (cancelled) return;
+    const now = Date.now();
+    if (now < (warmupEndMs ?? 0)) {
+      reportProgress("warmup");
+      return;
+    }
+    if (now >= (collectionEndMs ?? Infinity)) {
+      clearInterval(intervalId);
+      const avg = computeWeightedAverage(samples);
+      if (watchId != null) {
+        navigator.geolocation.clearWatch(watchId);
+        watchId = undefined;
+      }
+      if (avg) {
+        onSuccess({
+          latitude: avg.latitude,
+          longitude: avg.longitude,
+          samplesUsed: samples.length,
+          samplesDiscarded,
+          durationMs: COLLECTION_MS,
+        });
+      } else {
+        onError({
+          code: 2,
+          message: "No valid samples (accuracy ≤ 10 m required)",
+          PERMISSION_DENIED: 1,
+          POSITION_UNAVAILABLE: 2,
+          TIMEOUT: 3,
+        });
+      }
+      return;
+    }
+    reportProgress("collecting");
+  };
+
+  warmupEndMs = Date.now() + WARMUP_MS;
+  collectionEndMs = warmupEndMs + COLLECTION_MS;
+  const intervalId = setInterval(tick, 500);
+
+  watchId = navigator.geolocation.watchPosition(
+    (position) => {
+      if (cancelled) return;
+      const { latitude, longitude, accuracy } = position.coords;
+      const acc = accuracy ?? Infinity;
+      latestAccuracy = acc;
+      if (Date.now() < (warmupEndMs ?? 0)) return;
+      if (Date.now() >= (collectionEndMs ?? Infinity)) return;
+      if (acc > MAX_ACCURACY_M) {
+        samplesDiscarded += 1;
+        return;
+      }
+      samples.push({ latitude, longitude, accuracy: acc });
+      onSampleAccepted?.({ latitude, longitude });
+    },
+    (err) => {
+      if (!cancelled) onError(err);
+    },
+    {
+      enableHighAccuracy: true,
+      maximumAge: 0,
+      timeout: 15_000,
+    }
+  );
+
+  return () => {
+    cancelled = true;
+    clearInterval(intervalId);
+    if (watchId != null) {
+      navigator.geolocation.clearWatch(watchId);
+      watchId = undefined;
+    }
+  };
+}
+
+function runAccuratePositionMock(
+  onProgress: GetAccuratePositionOptions["onProgress"],
+  onSampleAccepted: GetAccuratePositionOptions["onSampleAccepted"],
+  onSuccess: GetAccuratePositionOptions["onSuccess"],
+  onError: GetAccuratePositionOptions["onError"]
+): () => void {
+  let cancelled = false;
+  const startMs = Date.now();
+  const warmupEndMs = startMs + WARMUP_MS;
+  const collectionEndMs = warmupEndMs + COLLECTION_MS;
+  const samples: { latitude: number; longitude: number; accuracy: number }[] = [];
+  let samplesDiscarded = 0;
+  let latestAccuracy: number | null = null;
+
+  const tick = () => {
+    if (cancelled) return;
+    const now = Date.now();
+    if (now < warmupEndMs) {
+      onProgress?.({
+        phase: "warmup",
+        warmupRemainingMs: warmupEndMs - now,
+        samplesAccepted: 0,
+        samplesDiscarded: 0,
+        latestAccuracy: null,
+        currentAverage: null,
+      });
+      return;
+    }
+    if (now >= collectionEndMs) {
+      clearInterval(progressIntervalId);
+      const avg = computeWeightedAverage(samples);
+      if (avg) {
+        onSuccess({
+          latitude: avg.latitude,
+          longitude: avg.longitude,
+          samplesUsed: samples.length,
+          samplesDiscarded,
+          durationMs: COLLECTION_MS,
+        });
+      } else {
+        onError({
+          code: 2,
+          message: "No valid samples (accuracy ≤ 10 m required)",
+          PERMISSION_DENIED: 1,
+          POSITION_UNAVAILABLE: 2,
+          TIMEOUT: 3,
+        });
+      }
+      return;
+    }
+    onProgress?.({
+      phase: "collecting",
+      collectingElapsedMs: now - warmupEndMs,
+      collectingTotalMs: COLLECTION_MS,
+      samplesAccepted: samples.length,
+      samplesDiscarded,
+      latestAccuracy,
+      currentAverage: computeWeightedAverage(samples),
+    });
+  };
+
+  const progressIntervalId = setInterval(tick, 500);
+
+  let mockStep = 0;
+  const emitMockPosition = () => {
+    if (cancelled || Date.now() < warmupEndMs || Date.now() >= collectionEndMs) {
+      if (!cancelled) setTimeout(emitMockPosition, 800);
+      return;
+    }
+    const idx = mockStep % MOCK_LOCATIONS.length;
+    mockStep += 1;
+    const loc = MOCK_LOCATIONS[idx];
+    const accuracy = mockStep % 3 === 0 ? 15 : 3 + (mockStep % 5);
+    latestAccuracy = accuracy;
+    if (accuracy > MAX_ACCURACY_M) {
+      samplesDiscarded += 1;
+    } else {
+      samples.push({
+        latitude: loc.latitude,
+        longitude: loc.longitude,
+        accuracy,
+      });
+      onSampleAccepted?.({ latitude: loc.latitude, longitude: loc.longitude });
+    }
+    if (!cancelled && Date.now() < collectionEndMs) {
+      setTimeout(emitMockPosition, 800);
+    }
+  };
+  setTimeout(emitMockPosition, WARMUP_MS);
+
+  return () => {
+    cancelled = true;
+    clearInterval(progressIntervalId);
+  };
 }
