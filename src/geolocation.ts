@@ -57,9 +57,14 @@ export interface GetAccuratePositionOptions {
   onSampleAccepted?: (reading: {
     latitude: number;
     longitude: number;
+    accuracy: number;
   }) => void;
   onSuccess: (result: AccuratePositionResult) => void;
   onError: (error: GeolocationPositionError) => void;
+  /** Warm-up duration in ms before collecting samples. Defaults to 30_000. */
+  warmupMs?: number;
+  /** Collection duration in ms. Defaults to 60_000. */
+  collectionMs?: number;
 }
 
 function createMockPosition(
@@ -146,13 +151,12 @@ export function getAccuratePosition(
   options: GetAccuratePositionOptions
 ): () => void {
   const { onProgress, onSampleAccepted, onSuccess, onError } = options;
+  const warmupMs = options.warmupMs ?? WARMUP_MS;
+  const collectionMs = options.collectionMs ?? COLLECTION_MS;
 
   if (import.meta.env.DEV) {
     return runAccuratePositionMock(
-      onProgress,
-      onSampleAccepted,
-      onSuccess,
-      onError
+      { onProgress, onSampleAccepted, onSuccess, onError, warmupMs, collectionMs }
     );
   }
 
@@ -191,7 +195,7 @@ export function getAccuratePosition(
       onProgress({
         phase: "collecting",
         collectingElapsedMs: now - (warmupEndMs ?? now),
-        collectingTotalMs: COLLECTION_MS,
+        collectingTotalMs: collectionMs,
         samplesAccepted: samples.length,
         samplesDiscarded,
         latestAccuracy,
@@ -220,7 +224,7 @@ export function getAccuratePosition(
           longitude: avg.longitude,
           samplesUsed: samples.length,
           samplesDiscarded,
-          durationMs: COLLECTION_MS,
+          durationMs: collectionMs,
         });
       } else {
         onError({
@@ -236,8 +240,8 @@ export function getAccuratePosition(
     reportProgress("collecting");
   };
 
-  warmupEndMs = Date.now() + WARMUP_MS;
-  collectionEndMs = warmupEndMs + COLLECTION_MS;
+  warmupEndMs = Date.now() + warmupMs;
+  collectionEndMs = warmupEndMs + collectionMs;
   const intervalId = setInterval(tick, 500);
 
   watchId = navigator.geolocation.watchPosition(
@@ -253,7 +257,7 @@ export function getAccuratePosition(
         return;
       }
       samples.push({ latitude, longitude, accuracy: acc });
-      onSampleAccepted?.({ latitude, longitude });
+      onSampleAccepted?.({ latitude, longitude, accuracy: acc });
     },
     (err) => {
       if (!cancelled) onError(err);
@@ -276,15 +280,20 @@ export function getAccuratePosition(
 }
 
 function runAccuratePositionMock(
-  onProgress: GetAccuratePositionOptions["onProgress"],
-  onSampleAccepted: GetAccuratePositionOptions["onSampleAccepted"],
-  onSuccess: GetAccuratePositionOptions["onSuccess"],
-  onError: GetAccuratePositionOptions["onError"]
+  opts: GetAccuratePositionOptions & { warmupMs: number; collectionMs: number }
 ): () => void {
+  const {
+    onProgress,
+    onSampleAccepted,
+    onSuccess,
+    onError,
+    warmupMs,
+    collectionMs,
+  } = opts;
   let cancelled = false;
   const startMs = Date.now();
-  const warmupEndMs = startMs + WARMUP_MS;
-  const collectionEndMs = warmupEndMs + COLLECTION_MS;
+  const warmupEndMs = startMs + warmupMs;
+  const collectionEndMs = warmupEndMs + collectionMs;
   const samples: { latitude: number; longitude: number; accuracy: number }[] = [];
   let samplesDiscarded = 0;
   let latestAccuracy: number | null = null;
@@ -312,7 +321,7 @@ function runAccuratePositionMock(
           longitude: avg.longitude,
           samplesUsed: samples.length,
           samplesDiscarded,
-          durationMs: COLLECTION_MS,
+          durationMs: collectionMs,
         });
       } else {
         onError({
@@ -328,7 +337,7 @@ function runAccuratePositionMock(
     onProgress?.({
       phase: "collecting",
       collectingElapsedMs: now - warmupEndMs,
-      collectingTotalMs: COLLECTION_MS,
+      collectingTotalMs: collectionMs,
       samplesAccepted: samples.length,
       samplesDiscarded,
       latestAccuracy,
@@ -357,13 +366,17 @@ function runAccuratePositionMock(
         longitude: loc.longitude,
         accuracy,
       });
-      onSampleAccepted?.({ latitude: loc.latitude, longitude: loc.longitude });
+      onSampleAccepted?.({
+        latitude: loc.latitude,
+        longitude: loc.longitude,
+        accuracy,
+      });
     }
     if (!cancelled && Date.now() < collectionEndMs) {
       setTimeout(emitMockPosition, 800);
     }
   };
-  setTimeout(emitMockPosition, WARMUP_MS);
+  setTimeout(emitMockPosition, warmupMs);
 
   return () => {
     cancelled = true;

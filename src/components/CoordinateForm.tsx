@@ -50,6 +50,8 @@ interface CoordinateFormProps {
   onUpdateNote: (coordinateId: string, notes: string) => void;
   onFindBearing: (sourceCoordinateId: string, targetCoordinateId: string) => void;
   onDelete: (coordinateId: string) => void;
+  warmupSeconds: number;
+  averagingDurationSeconds: number;
 }
 
 function optionForCode(code: string, options: CRSOption[]): CRSOption {
@@ -75,6 +77,8 @@ export function CoordinateForm({
   onUpdateNote,
   onFindBearing,
   onDelete,
+  warmupSeconds,
+  averagingDurationSeconds,
 }: CoordinateFormProps) {
   const [crsOptions, setCrsOptions] = useState<CRSOption[] | null>(null);
   const [crsLoading, setCrsLoading] = useState(false);
@@ -398,6 +402,8 @@ export function CoordinateForm({
           setGeoUnavailable(true);
           setGeoSbOpen(true);
         }}
+        warmupSeconds={warmupSeconds}
+        averagingDurationSeconds={averagingDurationSeconds}
       />
 
       <TransformCrsDialog

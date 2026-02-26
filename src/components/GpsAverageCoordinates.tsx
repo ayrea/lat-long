@@ -1,12 +1,20 @@
 import Box from "@mui/material/Box";
 import { useTheme } from "@mui/material/styles";
+import { transformCoordinate } from "../transform";
+import {
+  getUtmProj4String,
+  getUtmZone,
+  WGS84_PROJ4,
+} from "../utm";
 
 const PADDING = 12;
 const CROSS_HALF = 4;
+const DEGENERATE_RANGE_M = 1;
 
 export interface GpsReading {
   longitude: number;
   latitude: number;
+  accuracy: number;
 }
 
 interface GpsAverageCoordinatesProps {
@@ -15,55 +23,93 @@ interface GpsAverageCoordinatesProps {
   height: number;
   selectedIndex: number | null;
   onSelect: (index: number | null) => void;
-  average?: GpsReading | null;
+  average?: { longitude: number; latitude: number } | null;
 }
 
-function getBounds(
+function latLonToUtm(
+  lon: number,
+  lat: number,
+  utmProj4: string
+): { easting: number; northing: number } {
+  const [easting, northing] = transformCoordinate(
+    WGS84_PROJ4,
+    utmProj4,
+    lon,
+    lat
+  );
+  return { easting, northing };
+}
+
+interface UtmBounds {
+  minE: number;
+  maxE: number;
+  minN: number;
+  maxN: number;
+  scale: number;
+  offsetX: number;
+  offsetY: number;
+  utmProj4: string;
+}
+
+function getUtmBounds(
   readings: GpsReading[],
-  average?: GpsReading | null
-) {
-  const hasReadings = readings.length > 0;
-  const hasAverage = average != null;
-  if (!hasReadings && !hasAverage) {
-    return { minLon: 0, maxLon: 1, minLat: 0, maxLat: 1 };
+  average: { longitude: number; latitude: number } | null | undefined,
+  width: number,
+  height: number
+): UtmBounds | null {
+  if (readings.length === 0) return null;
+  const zone = getUtmZone(readings[0].longitude);
+  const south = readings[0].latitude < 0;
+  const utmProj4 = getUtmProj4String(zone, south);
+
+  const points: { easting: number; northing: number }[] = readings.map((r) =>
+    latLonToUtm(r.longitude, r.latitude, utmProj4)
+  );
+  if (average != null) {
+    points.push(latLonToUtm(average.longitude, average.latitude, utmProj4));
   }
-  const lons = readings.map((r) => r.longitude);
-  const lats = readings.map((r) => r.latitude);
-  if (hasAverage) {
-    lons.push(average.longitude);
-    lats.push(average.latitude);
+
+  let minE = Math.min(...points.map((p) => p.easting));
+  let maxE = Math.max(...points.map((p) => p.easting));
+  let minN = Math.min(...points.map((p) => p.northing));
+  let maxN = Math.max(...points.map((p) => p.northing));
+  if (maxE === minE) {
+    minE -= DEGENERATE_RANGE_M / 2;
+    maxE += DEGENERATE_RANGE_M / 2;
   }
-  let minLon = Math.min(...lons);
-  let maxLon = Math.max(...lons);
-  let minLat = Math.min(...lats);
-  let maxLat = Math.max(...lats);
-  if (maxLon === minLon) {
-    minLon -= 0.0001;
-    maxLon += 0.0001;
+  if (maxN === minN) {
+    minN -= DEGENERATE_RANGE_M / 2;
+    maxN += DEGENERATE_RANGE_M / 2;
   }
-  if (maxLat === minLat) {
-    minLat -= 0.0001;
-    maxLat += 0.0001;
-  }
-  return { minLon, maxLon, minLat, maxLat };
+
+  const rangeE = maxE - minE;
+  const rangeN = maxN - minN;
+  const plotWidth = width - 2 * PADDING;
+  const plotHeight = height - 2 * PADDING;
+  const scale = Math.min(plotWidth / rangeE, plotHeight / rangeN);
+  const offsetX = (plotWidth - rangeE * scale) / 2;
+  const offsetY = (plotHeight - rangeN * scale) / 2;
+
+  return {
+    minE,
+    maxE,
+    minN,
+    maxN,
+    scale,
+    offsetX,
+    offsetY,
+    utmProj4,
+  };
 }
 
 function toSvg(
-  r: GpsReading,
-  bounds: ReturnType<typeof getBounds>,
-  width: number,
-  height: number
-) {
-  const rangeLon = bounds.maxLon - bounds.minLon;
-  const rangeLat = bounds.maxLat - bounds.minLat;
-  const x =
-    PADDING +
-    (rangeLon ? (r.longitude - bounds.minLon) / rangeLon : 0) *
-      (width - 2 * PADDING);
+  easting: number,
+  northing: number,
+  bounds: UtmBounds
+): { x: number; y: number } {
+  const x = PADDING + bounds.offsetX + (easting - bounds.minE) * bounds.scale;
   const y =
-    PADDING +
-    (rangeLat ? (bounds.maxLat - r.latitude) / rangeLat : 0) *
-      (height - 2 * PADDING);
+    PADDING + bounds.offsetY + (bounds.maxN - northing) * bounds.scale;
   return { x, y };
 }
 
@@ -76,7 +122,7 @@ export function GpsAverageCoordinates({
   average,
 }: GpsAverageCoordinatesProps) {
   const theme = useTheme();
-  const bounds = getBounds(readings, average);
+  const bounds = getUtmBounds(readings, average, width, height);
 
   if (readings.length === 0) {
     return (
@@ -99,6 +145,12 @@ export function GpsAverageCoordinates({
     );
   }
 
+  if (bounds == null) {
+    return null;
+  }
+
+  const circleFill = theme.palette.primary.main;
+
   return (
     <svg
       width={width}
@@ -107,12 +159,19 @@ export function GpsAverageCoordinates({
       aria-label="GPS readings plot"
     >
       {readings.map((r, i) => {
-        const { x, y } = toSvg(r, bounds, width, height);
+        const { easting, northing } = latLonToUtm(
+          r.longitude,
+          r.latitude,
+          bounds.utmProj4
+        );
+        const { x, y } = toSvg(easting, northing, bounds);
         const selected = selectedIndex === i;
         const stroke = selected
           ? theme.palette.primary.main
           : theme.palette.text.secondary;
         const hit = 10;
+        const radiusM = 0.1 * r.accuracy;
+        const radiusSvg = radiusM * bounds.scale;
         return (
           <g
             key={i}
@@ -120,6 +179,13 @@ export function GpsAverageCoordinates({
             style={{ cursor: "pointer" }}
             aria-label={selected ? `Reading ${i + 1} selected` : `Reading ${i + 1}`}
           >
+            <circle
+              cx={x}
+              cy={y}
+              r={radiusSvg}
+              fill={circleFill}
+              fillOpacity={0.1}
+            />
             <rect
               x={x - hit}
               y={y - hit}
@@ -146,30 +212,36 @@ export function GpsAverageCoordinates({
           </g>
         );
       })}
-      {average != null && (() => {
-        const { x, y } = toSvg(average, bounds, width, height);
-        const stroke = theme.palette.warning.main;
-        return (
-          <g key="average" aria-label="Average position">
-            <line
-              x1={x - CROSS_HALF}
-              y1={y}
-              x2={x + CROSS_HALF}
-              y2={y}
-              stroke={stroke}
-              strokeWidth={1.5}
-            />
-            <line
-              x1={x}
-              y1={y - CROSS_HALF}
-              x2={x}
-              y2={y + CROSS_HALF}
-              stroke={stroke}
-              strokeWidth={1.5}
-            />
-          </g>
-        );
-      })()}
+      {average != null &&
+        (() => {
+          const { easting, northing } = latLonToUtm(
+            average.longitude,
+            average.latitude,
+            bounds.utmProj4
+          );
+          const { x, y } = toSvg(easting, northing, bounds);
+          const stroke = theme.palette.warning.main;
+          return (
+            <g key="average" aria-label="Average position">
+              <line
+                x1={x - CROSS_HALF}
+                y1={y}
+                x2={x + CROSS_HALF}
+                y2={y}
+                stroke={stroke}
+                strokeWidth={1.5}
+              />
+              <line
+                x1={x}
+                y1={y - CROSS_HALF}
+                x2={x}
+                y2={y + CROSS_HALF}
+                stroke={stroke}
+                strokeWidth={1.5}
+              />
+            </g>
+          );
+        })()}
     </svg>
   );
 }
