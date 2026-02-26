@@ -26,24 +26,27 @@ interface GpsAveragingDialogProps {
   onClose: () => void;
   onComplete: (payload: GpsAveragingResult) => void;
   onError?: () => void;
+  warmupSeconds?: number;
+  averagingDurationSeconds?: number;
 }
-
-const WARMUP_MS = 30_000;
-const COLLECTION_MS = 60_000;
-const TOTAL_MS = WARMUP_MS + COLLECTION_MS;
 
 export function GpsAveragingDialog({
   open,
   onClose,
   onComplete,
   onError,
+  warmupSeconds = 30,
+  averagingDurationSeconds = 60,
 }: GpsAveragingDialogProps) {
+  const warmupMs = warmupSeconds * 1000;
+  const collectionMs = averagingDurationSeconds * 1000;
+  const totalMs = warmupMs + collectionMs;
   const [progress, setProgress] = useState<AccuratePositionProgress | null>(
     null
   );
   const [result, setResult] = useState<AccuratePositionResult | null>(null);
   const [readings, setReadings] = useState<
-    { longitude: number; latitude: number }[]
+    { longitude: number; latitude: number; accuracy: number }[]
   >([]);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const cancelRef = useRef<(() => void) | null>(null);
@@ -66,8 +69,9 @@ export function GpsAveragingDialog({
 
   const handleDone = () => {
     if (result == null) return;
+    const durationSec = Math.round(result.durationMs / 1000);
     const notes =
-      `Accurate GPS: ${result.samplesUsed} samples over 60s, weighted by 1/accuracy². Discarded: ${result.samplesDiscarded}.`;
+      `Accurate GPS: ${result.samplesUsed} samples over ${durationSec}s, weighted by 1/accuracy². Discarded: ${result.samplesDiscarded}.`;
     onComplete({
       longitude: result.longitude,
       latitude: result.latitude,
@@ -80,7 +84,7 @@ export function GpsAveragingDialog({
     if (!open || !isGeolocationAvailable()) return;
     setProgress({
       phase: "warmup",
-      warmupRemainingMs: WARMUP_MS,
+      warmupRemainingMs: warmupMs,
       samplesAccepted: 0,
       samplesDiscarded: 0,
       latestAccuracy: null,
@@ -102,6 +106,8 @@ export function GpsAveragingDialog({
         onError?.();
         handleClose();
       },
+      warmupMs,
+      collectionMs,
     });
 
     return () => {
@@ -110,15 +116,18 @@ export function GpsAveragingDialog({
         cancelRef.current = null;
       }
     };
-  }, [open]);
+  }, [open, warmupMs, collectionMs]);
 
   const progressPercent =
     progress != null
       ? progress.phase === "warmup"
-        ? (1 - (progress.warmupRemainingMs ?? 0) / WARMUP_MS) * (WARMUP_MS / TOTAL_MS) * 100
-        : (WARMUP_MS / TOTAL_MS) * 100 +
-          ((progress.collectingElapsedMs ?? 0) / COLLECTION_MS) *
-            (COLLECTION_MS / TOTAL_MS) * 100
+        ? (1 - (progress.warmupRemainingMs ?? 0) / warmupMs) *
+          (warmupMs / totalMs) *
+          100
+        : (warmupMs / totalMs) * 100 +
+          ((progress.collectingElapsedMs ?? 0) / collectionMs) *
+            (collectionMs / totalMs) *
+            100
       : 100;
 
   return (
@@ -150,7 +159,7 @@ export function GpsAveragingDialog({
               {progress?.phase === "warmup"
                 ? `Warming up… ${Math.ceil((progress.warmupRemainingMs ?? 0) / 1000)} s remaining`
                 : progress?.phase === "collecting"
-                  ? `Collecting… ${Math.floor((progress.collectingElapsedMs ?? 0) / 1000)} s / 60 s`
+                  ? `Collecting… ${Math.floor((progress.collectingElapsedMs ?? 0) / 1000)} s / ${averagingDurationSeconds} s`
                   : result != null
                     ? "Complete"
                     : "Starting…"}

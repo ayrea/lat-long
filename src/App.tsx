@@ -3,8 +3,9 @@ import Box from "@mui/material/Box";
 import CssBaseline from "@mui/material/CssBaseline";
 import { ThemeProvider } from "@mui/material";
 import { useCallback, useEffect, useState } from "react";
-import { TopBar } from "./components/TopBar";
 import { CoordinateForm } from "./components/CoordinateForm";
+import { TopBar } from "./components/TopBar";
+import type { SettingsValues } from "./components/SettingsDialog";
 import { getAppTheme, type ColorMode } from "./theme";
 import { loadCrs, setStoredDefaultCrs } from "./crs";
 import { transformCoordinate } from "./transform";
@@ -15,6 +16,24 @@ import {
 import type { Coordinate } from "./types";
 
 const COLOR_MODE_STORAGE_KEY = "lat-long-color-mode";
+const GPS_WARMUP_STORAGE_KEY = "lat-long-gps-warmup-seconds";
+const GPS_DURATION_STORAGE_KEY = "lat-long-gps-averaging-duration-seconds";
+
+function parseStoredInt(
+  key: string,
+  defaultVal: number,
+  min: number,
+  max: number
+): number {
+  try {
+    const s = localStorage.getItem(key);
+    if (s == null) return defaultVal;
+    const n = parseInt(s, 10);
+    return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : defaultVal;
+  } catch {
+    return defaultVal;
+  }
+}
 
 function generateId(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -58,6 +77,12 @@ export default function App() {
     const s = localStorage.getItem(COLOR_MODE_STORAGE_KEY);
     return s === "light" ? "light" : "dark";
   });
+  const [warmupSeconds, setWarmupSeconds] = useState(() =>
+    parseStoredInt(GPS_WARMUP_STORAGE_KEY, 30, 1, 600)
+  );
+  const [averagingDurationSeconds, setAveragingDurationSeconds] = useState(
+    () => parseStoredInt(GPS_DURATION_STORAGE_KEY, 60, 1, 600)
+  );
   const [coordinates, setCoordinates] = useState<Coordinate[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
@@ -74,9 +99,16 @@ export default function App() {
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [coordinates.length]);
 
-  const handleColorModeChange = useCallback((mode: ColorMode) => {
-    setColorMode(mode);
-    localStorage.setItem(COLOR_MODE_STORAGE_KEY, mode);
+  const handleSaveSettings = useCallback((settings: SettingsValues) => {
+    setColorMode(settings.colorMode);
+    localStorage.setItem(COLOR_MODE_STORAGE_KEY, settings.colorMode);
+    setWarmupSeconds(settings.warmupSeconds);
+    setAveragingDurationSeconds(settings.averagingDurationSeconds);
+    localStorage.setItem(GPS_WARMUP_STORAGE_KEY, String(settings.warmupSeconds));
+    localStorage.setItem(
+      GPS_DURATION_STORAGE_KEY,
+      String(settings.averagingDurationSeconds)
+    );
   }, []);
 
   const handleAddCoordinate = useCallback(
@@ -297,11 +329,13 @@ export default function App() {
         <Box sx={{ flexShrink: 0 }}>
           <TopBar
             colorMode={colorMode}
-            onColorModeChange={handleColorModeChange}
             hasCoordinates={coordinates.length > 0}
             onReset={handleReset}
             onExport={handleExport}
             onAddCoordinate={() => setAddDialogOpen(true)}
+            warmupSeconds={warmupSeconds}
+            averagingDurationSeconds={averagingDurationSeconds}
+            onSaveSettings={handleSaveSettings}
           />
         </Box>
         {error != null && (
@@ -321,19 +355,21 @@ export default function App() {
           }}
         >
           <CoordinateForm
-          coordinates={coordinates}
-          nextSuggestedName={getNextNumericName(coordinates)}
-          addDialogOpen={addDialogOpen}
-          onAddDialogOpen={() => setAddDialogOpen(true)}
-          onAddDialogClose={() => setAddDialogOpen(false)}
-          onAddCoordinate={handleAddCoordinate}
-          onTransform={handleTransform}
-          onProject={handleProject}
-          onRename={handleRename}
-          onDelete={handleDelete}
-          onUpdateNote={handleUpdateNote}
-          onFindBearing={handleFindBearing}
-        />
+            coordinates={coordinates}
+            nextSuggestedName={getNextNumericName(coordinates)}
+            addDialogOpen={addDialogOpen}
+            onAddDialogOpen={() => setAddDialogOpen(true)}
+            onAddDialogClose={() => setAddDialogOpen(false)}
+            onAddCoordinate={handleAddCoordinate}
+            onTransform={handleTransform}
+            onProject={handleProject}
+            onRename={handleRename}
+            onDelete={handleDelete}
+            onUpdateNote={handleUpdateNote}
+            onFindBearing={handleFindBearing}
+            warmupSeconds={warmupSeconds}
+            averagingDurationSeconds={averagingDurationSeconds}
+          />
         </Box>
       </Box>
     </ThemeProvider>

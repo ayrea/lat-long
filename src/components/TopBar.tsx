@@ -7,8 +7,10 @@ import MenuItem from "@mui/material/MenuItem";
 import Typography from "@mui/material/Typography";
 import { useState } from "react";
 import type { ColorMode } from "../theme";
+import type { SettingsValues } from "./SettingsDialog";
 import { AboutDialog } from "./AboutDialog";
 import { ConfirmationDialog } from "./ConfirmationDialog";
+import { SettingsDialog } from "./SettingsDialog";
 
 function MenuIcon() {
   return (
@@ -26,24 +28,29 @@ function MenuIcon() {
 
 interface TopBarProps {
   colorMode: ColorMode;
-  onColorModeChange: (mode: ColorMode) => void;
   hasCoordinates: boolean;
   onReset: () => void;
   onExport: () => void;
   onAddCoordinate: () => void;
+  warmupSeconds: number;
+  averagingDurationSeconds: number;
+  onSaveSettings: (settings: SettingsValues) => void;
 }
 
 export function TopBar({
   colorMode,
-  onColorModeChange,
   hasCoordinates,
   onReset,
   onExport,
   onAddCoordinate,
+  warmupSeconds,
+  averagingDurationSeconds,
+  onSaveSettings,
 }: TopBarProps) {
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [resetOpen, setResetOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const menuOpen = Boolean(menuAnchor);
 
@@ -72,9 +79,9 @@ export function TopBar({
     setAboutOpen(true);
   };
 
-  const handleDarkModeClick = () => {
-    onColorModeChange(colorMode === "dark" ? "light" : "dark");
+  const handleSettingsClick = () => {
     handleMenuClose();
+    setSettingsOpen(true);
   };
 
   return (
@@ -131,10 +138,8 @@ export function TopBar({
         >
           <ListItemText primary="Export" />
         </MenuItem>
-        <MenuItem onClick={handleDarkModeClick}>
-          <ListItemText
-            primary={colorMode === "dark" ? "Light mode" : "Dark mode"}
-          />
+        <MenuItem onClick={handleSettingsClick}>
+          <ListItemText primary="Settings" />
         </MenuItem>
         <MenuItem onClick={handleAboutClick}>
           <ListItemText primary="About" />
@@ -147,6 +152,14 @@ export function TopBar({
         title="Reset"
         contentText="Are you sure? This will clear all coordinates and reset the application to the starting state."
         confirmButtonText="Reset"
+      />
+      <SettingsDialog
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        initialColorMode={colorMode}
+        initialWarmupSeconds={warmupSeconds}
+        initialAveragingDurationSeconds={averagingDurationSeconds}
+        onSave={onSaveSettings}
       />
       <AboutDialog open={aboutOpen} onClose={() => setAboutOpen(false)} />
     </>
