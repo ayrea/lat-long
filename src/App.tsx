@@ -2,7 +2,9 @@ import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import CssBaseline from "@mui/material/CssBaseline";
 import { ThemeProvider } from "@mui/material";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
+import { useLiveQuery } from "dexie-react-hooks";
+import { db, type CoordinateRecord } from "./db";
 import { CoordinateForm } from "./components/CoordinateForm";
 import { TopBar } from "./components/TopBar";
 import type { SettingsValues } from "./components/SettingsDialog";
@@ -83,21 +85,13 @@ export default function App() {
   const [averagingDurationSeconds, setAveragingDurationSeconds] = useState(
     () => parseStoredInt(GPS_DURATION_STORAGE_KEY, 60, 1, 600)
   );
-  const [coordinates, setCoordinates] = useState<Coordinate[]>([]);
+  const coordinates = useLiveQuery(
+    () => db.coordinates.orderBy("sortOrder").toArray(),
+    [],
+    [] as CoordinateRecord[]
+  );
   const [error, setError] = useState<string | null>(null);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
-
-  useEffect(() => {
-    if (coordinates.length === 0) return;
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-      // Browsers do not allow custom beforeunload messages (they show a generic
-      // "Leave site?" prompt) for security reasons. preventDefault() alone
-      // triggers the dialog.
-    };
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [coordinates.length]);
 
   const handleSaveSettings = useCallback((settings: SettingsValues) => {
     setColorMode(settings.colorMode);
@@ -112,7 +106,7 @@ export default function App() {
   }, []);
 
   const handleAddCoordinate = useCallback(
-    (payload: {
+    async (payload: {
       crsCode: string;
       x: number;
       y: number;
@@ -125,20 +119,18 @@ export default function App() {
           ? deriveUniqueName(existing, payload.nameOverride)
           : getNextNumericName(coordinates);
       setStoredDefaultCrs(payload.crsCode);
-      setCoordinates((prev) => [
-        ...prev,
-        {
-          id: generateId(),
-          name,
-          crsCode: payload.crsCode,
-          x: payload.x,
-          y: payload.y,
-          cardType: "manual" as const,
-          ...(payload.notes != null && payload.notes !== ""
-            ? { notes: payload.notes }
-            : {}),
-        },
-      ]);
+      await db.coordinates.add({
+        id: generateId(),
+        name,
+        crsCode: payload.crsCode,
+        x: payload.x,
+        y: payload.y,
+        cardType: "manual" as const,
+        ...(payload.notes != null && payload.notes !== ""
+          ? { notes: payload.notes }
+          : {}),
+        sortOrder: Date.now(),
+      });
     },
     [coordinates]
   );
@@ -168,17 +160,15 @@ export default function App() {
           existing,
           `${source.name}_Transform`
         );
-        setCoordinates((prev) => [
-          ...prev,
-          {
-            id: generateId(),
-            name: newName,
-            crsCode: targetCrsCode,
-            x: outX,
-            y: outY,
-            cardType: "transform" as const,
-          },
-        ]);
+        await db.coordinates.add({
+          id: generateId(),
+          name: newName,
+          crsCode: targetCrsCode,
+          x: outX,
+          y: outY,
+          cardType: "transform" as const,
+          sortOrder: Date.now(),
+        });
       } catch (e) {
         setError(e instanceof Error ? e.message : "Transform failed.");
       }
@@ -187,7 +177,7 @@ export default function App() {
   );
 
   const handleProject = useCallback(
-    (coordinateId: string, bearing: number, distance: number) => {
+    async (coordinateId: string, bearing: number, distance: number) => {
       setError(null);
       const source = coordinates.find((c) => c.id === coordinateId);
       if (!source) return;
@@ -200,18 +190,18 @@ export default function App() {
         );
         const existing = new Set(coordinates.map((c) => c.name));
         const newName = deriveUniqueName(existing, `${source.name}_Project`);
-        setCoordinates((prev) => [
-          ...prev,
-          {
-            id: generateId(),
-            name: newName,
-            crsCode: source.crsCode,
-            x: easting,
-            y: northing,
-            cardType: "project" as const,
-            notes: `Projected from ${source.name}: bearing ${bearing.toFixed(1)}°, distance ${distance.toFixed(2)} units`,
-          },
-        ]);
+        await db.coordinates.add({
+          id: generateId(),
+          name: newName,
+          crsCode: source.crsCode,
+          x: easting,
+          y: northing,
+          cardType: "project" as const,
+          notes: `Projected from ${source.name}: bearing ${bearing.toFixed(
+            1
+          )}°, distance ${distance.toFixed(2)} units`,
+          sortOrder: Date.now(),
+        });
       } catch (e) {
         setError(e instanceof Error ? e.message : "Project failed.");
       }
@@ -225,25 +215,17 @@ export default function App() {
         new Set(coordinates.map((c) => (c.id === coordinateId ? "" : c.name))),
         newName.trim()
       );
-      setCoordinates((prev) =>
-        prev.map((c) =>
-          c.id === coordinateId ? { ...c, name: unique } : c
-        )
-      );
+      void db.coordinates.update(coordinateId, { name: unique });
     },
     [coordinates]
   );
 
   const handleDelete = useCallback((coordinateId: string) => {
-    setCoordinates((prev) => prev.filter((c) => c.id !== coordinateId));
+    void db.coordinates.delete(coordinateId);
   }, []);
 
   const handleUpdateNote = useCallback((coordinateId: string, notes: string) => {
-    setCoordinates((prev) =>
-      prev.map((c) =>
-        c.id === coordinateId ? { ...c, notes } : c
-      )
-    );
+    void db.coordinates.update(coordinateId, { notes });
   }, []);
 
   const handleFindBearing = useCallback(
@@ -262,11 +244,7 @@ export default function App() {
         const line = `Bearing to ${target.name}: ${bearingDeg.toFixed(1)}°, distance: ${distance.toFixed(2)} units`;
         const existing = (source.notes ?? "").trim();
         const newNotes = existing ? `${existing}\n${line}` : line;
-        setCoordinates((prev) =>
-          prev.map((c) =>
-            c.id === sourceCoordinateId ? { ...c, notes: newNotes } : c
-          )
-        );
+        void db.coordinates.update(sourceCoordinateId, { notes: newNotes });
       } catch (e) {
         setError(e instanceof Error ? e.message : "Find bearing failed.");
       }
@@ -275,7 +253,7 @@ export default function App() {
   );
 
   const handleReset = useCallback(() => {
-    setCoordinates([]);
+    void db.coordinates.clear();
     setError(null);
   }, []);
 
