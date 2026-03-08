@@ -421,6 +421,10 @@ export default function App() {
     URL.revokeObjectURL(url);
   }, []);
 
+  const handleExportCurrentProject = useCallback(() => {
+    if (selectedProjectId != null) void handleExportProject(selectedProjectId);
+  }, [selectedProjectId, handleExportProject]);
+
   const currentProjectName =
     projects.find((p) => p.projectId === selectedProjectId)?.projectName ?? "";
 
@@ -454,7 +458,7 @@ export default function App() {
             <CoordinatesTopBar
               colorMode={colorMode}
               currentProjectName={currentProjectName}
-              onExport={handleExport}
+              onExport={handleExportCurrentProject}
               onAddCoordinate={() => setAddDialogOpen(true)}
               onExitProject={handleExitProject}
               warmupSeconds={warmupSeconds}
