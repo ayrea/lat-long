@@ -10,7 +10,6 @@ import { useState } from "react";
 import type { ColorMode } from "../theme";
 import type { SettingsValues } from "./SettingsDialog";
 import { AboutDialog } from "./AboutDialog";
-import { ConfirmationDialog } from "./ConfirmationDialog";
 import { SettingsDialog } from "./SettingsDialog";
 
 function MenuIcon() {
@@ -35,7 +34,6 @@ interface TopBarProps {
   hasCoordinates: boolean;
   hasProjects: boolean;
   currentProjectName?: string;
-  onReset: () => void;
   onExport: () => void;
   onAddCoordinate: () => void;
   onAddProject?: () => void;
@@ -51,7 +49,6 @@ export function TopBar({
   hasCoordinates: _hasCoordinates,
   hasProjects,
   currentProjectName = "",
-  onReset,
   onExport,
   onAddCoordinate,
   onAddProject,
@@ -61,7 +58,6 @@ export function TopBar({
   onSaveSettings,
 }: TopBarProps) {
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
-  const [resetOpen, setResetOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
@@ -74,16 +70,6 @@ export function TopBar({
     setMenuAnchor(e.currentTarget);
   };
   const handleMenuClose = () => setMenuAnchor(null);
-
-  const handleResetClick = () => {
-    handleMenuClose();
-    setResetOpen(true);
-  };
-  const handleResetConfirm = () => {
-    onReset();
-    setResetOpen(false);
-  };
-  const handleResetCancel = () => setResetOpen(false);
 
   const handleExportClick = () => {
     handleMenuClose();
@@ -106,11 +92,6 @@ export function TopBar({
       : (currentProjectName.length > 24
         ? `${currentProjectName.slice(0, 24)}…`
         : currentProjectName) || "Project";
-
-  const resetTitle = isProjectsView ? "Reset" : "Reset project";
-  const resetContent = isProjectsView
-    ? "Are you sure? This will clear all projects and all coordinates."
-    : "Are you sure? This will clear all coordinates in this project.";
 
   return (
     <>
@@ -169,9 +150,6 @@ export function TopBar({
         transformOrigin={{ vertical: "top", horizontal: "right" }}
         slotProps={{ list: { "aria-labelledby": "app-menu-button" } }}
       >
-        <MenuItem onClick={handleResetClick}>
-          <ListItemText primary={resetTitle} />
-        </MenuItem>
         <MenuItem onClick={handleExportClick} disabled={!canExport}>
           <ListItemText primary="Export" />
         </MenuItem>
@@ -182,14 +160,6 @@ export function TopBar({
           <ListItemText primary="About" />
         </MenuItem>
       </Menu>
-      <ConfirmationDialog
-        open={resetOpen}
-        onClose={handleResetCancel}
-        onConfirm={handleResetConfirm}
-        title={resetTitle}
-        contentText={resetContent}
-        confirmButtonText={resetTitle}
-      />
       <SettingsDialog
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}

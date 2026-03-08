@@ -304,16 +304,6 @@ export default function App() {
     [coordinates]
   );
 
-  const handleReset = useCallback(() => {
-    setError(null);
-    if (selectedProjectId != null) {
-      void db.coordinates.where("projectId").equals(selectedProjectId).delete();
-    } else {
-      void db.coordinates.clear();
-      void db.projects.clear();
-    }
-  }, [selectedProjectId]);
-
   const handleExport = useCallback(async () => {
     const allProjects = await db.projects.orderBy("sortOrder").toArray();
     const allCoordinates = await db.coordinates.toArray();
@@ -394,7 +384,6 @@ export default function App() {
             hasCoordinates={coordinates.length > 0}
             hasProjects={projects.length > 0}
             currentProjectName={currentProjectName}
-            onReset={handleReset}
             onExport={handleExport}
             onAddCoordinate={() => setAddDialogOpen(true)}
             onAddProject={() => setAddProjectDialogOpen(true)}
