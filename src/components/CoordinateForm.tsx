@@ -50,6 +50,7 @@ interface CoordinateFormProps {
   onUpdateNote: (coordinateId: string, notes: string) => void;
   onFindBearing: (sourceCoordinateId: string, targetCoordinateId: string) => void;
   onDelete: (coordinateId: string) => void;
+  onExitProject?: () => void;
   warmupSeconds: number;
   averagingDurationSeconds: number;
 }
@@ -77,6 +78,7 @@ export function CoordinateForm({
   onUpdateNote,
   onFindBearing,
   onDelete,
+  onExitProject: _onExitProject,
   warmupSeconds,
   averagingDurationSeconds,
 }: CoordinateFormProps) {

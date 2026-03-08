@@ -1,4 +1,5 @@
 import Add from "@mui/icons-material/Add";
+import ArrowBack from "@mui/icons-material/ArrowBack";
 import Box from "@mui/material/Box";
 import IconButton from "@mui/material/IconButton";
 import ListItemText from "@mui/material/ListItemText";
@@ -26,23 +27,35 @@ function MenuIcon() {
   );
 }
 
+export type TopBarView = "projects" | "coordinates";
+
 interface TopBarProps {
+  view: TopBarView;
   colorMode: ColorMode;
   hasCoordinates: boolean;
+  hasProjects: boolean;
+  currentProjectName?: string;
   onReset: () => void;
   onExport: () => void;
   onAddCoordinate: () => void;
+  onAddProject?: () => void;
+  onExitProject?: () => void;
   warmupSeconds: number;
   averagingDurationSeconds: number;
   onSaveSettings: (settings: SettingsValues) => void;
 }
 
 export function TopBar({
+  view,
   colorMode,
-  hasCoordinates,
+  hasCoordinates: _hasCoordinates,
+  hasProjects,
+  currentProjectName = "",
   onReset,
   onExport,
   onAddCoordinate,
+  onAddProject,
+  onExitProject,
   warmupSeconds,
   averagingDurationSeconds,
   onSaveSettings,
@@ -53,6 +66,9 @@ export function TopBar({
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const menuOpen = Boolean(menuAnchor);
+  const isProjectsView = view === "projects";
+  const canExport = isProjectsView ? hasProjects : true;
+  const addAction = isProjectsView ? onAddProject : onAddCoordinate;
 
   const handleMenuOpen = (e: React.MouseEvent<HTMLElement>) => {
     setMenuAnchor(e.currentTarget);
@@ -84,6 +100,18 @@ export function TopBar({
     setSettingsOpen(true);
   };
 
+  const title =
+    isProjectsView
+      ? "Coordinate Helper"
+      : (currentProjectName.length > 24
+        ? `${currentProjectName.slice(0, 24)}…`
+        : currentProjectName) || "Project";
+
+  const resetTitle = isProjectsView ? "Reset" : "Reset project";
+  const resetContent = isProjectsView
+    ? "Are you sure? This will clear all projects and all coordinates."
+    : "Are you sure? This will clear all coordinates in this project.";
+
   return (
     <>
       <Box
@@ -95,14 +123,26 @@ export function TopBar({
           width: "100%",
         }}
       >
-        <Typography variant="h6" component="h1">
-          Coordinate Helper
-        </Typography>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-          {hasCoordinates && (
+        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, minWidth: 0 }}>
+          {!isProjectsView && onExitProject != null && (
             <IconButton
-              onClick={onAddCoordinate}
-              aria-label="Add coordinate"
+              onClick={onExitProject}
+              aria-label="Exit project"
+              size="small"
+              sx={{ flexShrink: 0 }}
+            >
+              <ArrowBack />
+            </IconButton>
+          )}
+          <Typography variant="h6" component="h1" noWrap sx={{ minWidth: 0 }}>
+            {title}
+          </Typography>
+        </Box>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, flexShrink: 0 }}>
+          {addAction != null && (
+            <IconButton
+              onClick={addAction}
+              aria-label={isProjectsView ? "Add project" : "Add coordinate"}
               size="small"
             >
               <Add />
@@ -130,12 +170,9 @@ export function TopBar({
         slotProps={{ list: { "aria-labelledby": "app-menu-button" } }}
       >
         <MenuItem onClick={handleResetClick}>
-          <ListItemText primary="Reset" />
+          <ListItemText primary={resetTitle} />
         </MenuItem>
-        <MenuItem
-          onClick={handleExportClick}
-          disabled={!hasCoordinates}
-        >
+        <MenuItem onClick={handleExportClick} disabled={!canExport}>
           <ListItemText primary="Export" />
         </MenuItem>
         <MenuItem onClick={handleSettingsClick}>
@@ -149,9 +186,9 @@ export function TopBar({
         open={resetOpen}
         onClose={handleResetCancel}
         onConfirm={handleResetConfirm}
-        title="Reset"
-        contentText="Are you sure? This will clear all coordinates and reset the application to the starting state."
-        confirmButtonText="Reset"
+        title={resetTitle}
+        contentText={resetContent}
+        confirmButtonText={resetTitle}
       />
       <SettingsDialog
         open={settingsOpen}

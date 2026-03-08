@@ -3,6 +3,14 @@ export interface Coord {
   y: number;
 }
 
+/** A project that groups coordinate cards. */
+export interface Project {
+  projectId: string;
+  projectName: string;
+  notes?: string;
+  createdDateTime: string;
+}
+
 /** How the coordinate card was created; used for display (chip) and tracking. */
 export type CardType = "manual" | "project" | "transform";
 

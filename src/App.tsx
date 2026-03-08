@@ -4,8 +4,10 @@ import CssBaseline from "@mui/material/CssBaseline";
 import { ThemeProvider } from "@mui/material";
 import { useCallback, useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { db, type CoordinateRecord } from "./db";
+import { db, type CoordinateRecord, type ProjectRecord } from "./db";
+import { AddProjectDialog } from "./components/AddProjectDialog";
 import { CoordinateForm } from "./components/CoordinateForm";
+import { ProjectList } from "./components/ProjectList";
 import { TopBar } from "./components/TopBar";
 import type { SettingsValues } from "./components/SettingsDialog";
 import { getAppTheme, type ColorMode } from "./theme";
@@ -85,9 +87,24 @@ export default function App() {
   const [averagingDurationSeconds, setAveragingDurationSeconds] = useState(
     () => parseStoredInt(GPS_DURATION_STORAGE_KEY, 60, 1, 600)
   );
-  const coordinates = useLiveQuery(
-    () => db.coordinates.orderBy("sortOrder").toArray(),
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
+    null
+  );
+  const [addProjectDialogOpen, setAddProjectDialogOpen] = useState(false);
+  const projects = useLiveQuery(
+    () => db.projects.orderBy("sortOrder").toArray(),
     [],
+    [] as ProjectRecord[]
+  );
+  const coordinates = useLiveQuery(
+    () =>
+      selectedProjectId != null
+        ? db.coordinates
+            .where("projectId")
+            .equals(selectedProjectId)
+            .sortBy("sortOrder")
+        : Promise.resolve([] as CoordinateRecord[]),
+    [selectedProjectId],
     [] as CoordinateRecord[]
   );
   const [error, setError] = useState<string | null>(null);
@@ -105,6 +122,37 @@ export default function App() {
     );
   }, []);
 
+  const handleAddProject = useCallback(
+    async (projectName: string, notes: string) => {
+      const projectId = generateId();
+      await db.projects.add({
+        projectId,
+        projectName,
+        ...(notes !== "" ? { notes } : {}),
+        createdDateTime: new Date().toISOString(),
+        sortOrder: Date.now(),
+      });
+      setSelectedProjectId(projectId);
+    },
+    []
+  );
+
+  const handleDeleteProject = useCallback(async (projectId: string) => {
+    await db.coordinates.where("projectId").equals(projectId).delete();
+    await db.projects.delete(projectId);
+    if (selectedProjectId === projectId) {
+      setSelectedProjectId(null);
+    }
+  }, [selectedProjectId]);
+
+  const handleSelectProject = useCallback((projectId: string) => {
+    setSelectedProjectId(projectId);
+  }, []);
+
+  const handleExitProject = useCallback(() => {
+    setSelectedProjectId(null);
+  }, []);
+
   const handleAddCoordinate = useCallback(
     async (payload: {
       crsCode: string;
@@ -113,6 +161,7 @@ export default function App() {
       nameOverride?: string;
       notes?: string;
     }) => {
+      if (selectedProjectId == null) return;
       const existing = new Set(coordinates.map((c) => c.name));
       const name =
         payload.nameOverride !== undefined
@@ -130,9 +179,10 @@ export default function App() {
           ? { notes: payload.notes }
           : {}),
         sortOrder: Date.now(),
+        projectId: selectedProjectId,
       });
     },
-    [coordinates]
+    [coordinates, selectedProjectId]
   );
 
   const handleTransform = useCallback(
@@ -168,12 +218,13 @@ export default function App() {
           y: outY,
           cardType: "transform" as const,
           sortOrder: Date.now(),
+          projectId: selectedProjectId!,
         });
       } catch (e) {
         setError(e instanceof Error ? e.message : "Transform failed.");
       }
     },
-    [coordinates]
+    [coordinates, selectedProjectId]
   );
 
   const handleProject = useCallback(
@@ -201,12 +252,13 @@ export default function App() {
             1
           )}°, distance ${distance.toFixed(2)} units`,
           sortOrder: Date.now(),
+          projectId: selectedProjectId!,
         });
       } catch (e) {
         setError(e instanceof Error ? e.message : "Project failed.");
       }
     },
-    [coordinates]
+    [coordinates, selectedProjectId]
   );
 
   const handleRename = useCallback(
@@ -253,12 +305,20 @@ export default function App() {
   );
 
   const handleReset = useCallback(() => {
-    void db.coordinates.clear();
     setError(null);
-  }, []);
+    if (selectedProjectId != null) {
+      void db.coordinates.where("projectId").equals(selectedProjectId).delete();
+    } else {
+      void db.coordinates.clear();
+      void db.projects.clear();
+    }
+  }, [selectedProjectId]);
 
   const handleExport = useCallback(async () => {
-    const codes = new Set(coordinates.map((c) => c.crsCode));
+    const allProjects = await db.projects.orderBy("sortOrder").toArray();
+    const allCoordinates = await db.coordinates.toArray();
+    const projectById = new Map(allProjects.map((p) => [p.projectId, p]));
+    const codes = new Set(allCoordinates.map((c) => c.crsCode));
     const crsNameByCode: Record<string, string> = {};
     await Promise.all(
       Array.from(codes).map(async (code) => {
@@ -266,16 +326,35 @@ export default function App() {
         crsNameByCode[code] = info?.name ?? "";
       })
     );
-    const headers = ["Id", "Name", "CRS Code", "CRS Name", "X", "Y", "Notes"];
-    const rows = coordinates.map((c) => [
-      c.id,
-      c.name,
-      c.crsCode,
-      crsNameByCode[c.crsCode] ?? "",
-      c.x,
-      c.y,
-      c.notes ?? "",
-    ]);
+    const headers = [
+      "ProjectId",
+      "ProjectName",
+      "ProjectNotes",
+      "ProjectCreatedDateTime",
+      "Id",
+      "Name",
+      "CRS Code",
+      "CRS Name",
+      "X",
+      "Y",
+      "Notes",
+    ];
+    const rows = allCoordinates.map((c) => {
+      const proj = projectById.get(c.projectId);
+      return [
+        c.projectId,
+        proj?.projectName ?? "",
+        proj?.notes ?? "",
+        proj?.createdDateTime ?? "",
+        c.id,
+        c.name,
+        c.crsCode,
+        crsNameByCode[c.crsCode] ?? "",
+        c.x,
+        c.y,
+        c.notes ?? "",
+      ];
+    });
     const csv =
       headers.map(escapeCsvCell).join(",") +
       "\n" +
@@ -287,7 +366,11 @@ export default function App() {
     a.download = `coordinates-export-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [coordinates]);
+  }, []);
+
+  const currentProjectName =
+    projects.find((p) => p.projectId === selectedProjectId)?.projectName ?? "";
+  const view = selectedProjectId == null ? "projects" : "coordinates";
 
   return (
     <ThemeProvider theme={getAppTheme(colorMode)}>
@@ -306,11 +389,16 @@ export default function App() {
       >
         <Box sx={{ flexShrink: 0 }}>
           <TopBar
+            view={view}
             colorMode={colorMode}
             hasCoordinates={coordinates.length > 0}
+            hasProjects={projects.length > 0}
+            currentProjectName={currentProjectName}
             onReset={handleReset}
             onExport={handleExport}
             onAddCoordinate={() => setAddDialogOpen(true)}
+            onAddProject={() => setAddProjectDialogOpen(true)}
+            onExitProject={handleExitProject}
             warmupSeconds={warmupSeconds}
             averagingDurationSeconds={averagingDurationSeconds}
             onSaveSettings={handleSaveSettings}
@@ -332,24 +420,38 @@ export default function App() {
             overflow: "auto",
           }}
         >
-          <CoordinateForm
-            coordinates={coordinates}
-            nextSuggestedName={getNextNumericName(coordinates)}
-            addDialogOpen={addDialogOpen}
-            onAddDialogOpen={() => setAddDialogOpen(true)}
-            onAddDialogClose={() => setAddDialogOpen(false)}
-            onAddCoordinate={handleAddCoordinate}
-            onTransform={handleTransform}
-            onProject={handleProject}
-            onRename={handleRename}
-            onDelete={handleDelete}
-            onUpdateNote={handleUpdateNote}
-            onFindBearing={handleFindBearing}
-            warmupSeconds={warmupSeconds}
-            averagingDurationSeconds={averagingDurationSeconds}
-          />
+          {selectedProjectId == null ? (
+            <ProjectList
+              onSelectProject={handleSelectProject}
+              onAddProjectClick={() => setAddProjectDialogOpen(true)}
+              onDeleteProject={handleDeleteProject}
+            />
+          ) : (
+            <CoordinateForm
+              coordinates={coordinates}
+              nextSuggestedName={getNextNumericName(coordinates)}
+              addDialogOpen={addDialogOpen}
+              onAddDialogOpen={() => setAddDialogOpen(true)}
+              onAddDialogClose={() => setAddDialogOpen(false)}
+              onAddCoordinate={handleAddCoordinate}
+              onTransform={handleTransform}
+              onProject={handleProject}
+              onRename={handleRename}
+              onDelete={handleDelete}
+              onUpdateNote={handleUpdateNote}
+              onFindBearing={handleFindBearing}
+              onExitProject={handleExitProject}
+              warmupSeconds={warmupSeconds}
+              averagingDurationSeconds={averagingDurationSeconds}
+            />
+          )}
         </Box>
       </Box>
+      <AddProjectDialog
+        open={addProjectDialogOpen}
+        onClose={() => setAddProjectDialogOpen(false)}
+        onAddProject={handleAddProject}
+      />
     </ThemeProvider>
   );
 }
