@@ -123,6 +123,12 @@ export default function App() {
     );
   }, []);
 
+  const handleResetData = useCallback(async () => {
+    await db.coordinates.clear();
+    await db.projects.clear();
+    setSelectedProjectId(null);
+  }, []);
+
   const handleAddProject = useCallback(
     async (projectName: string, notes: string) => {
       const projectId = generateId();
@@ -453,17 +459,14 @@ export default function App() {
               warmupSeconds={warmupSeconds}
               averagingDurationSeconds={averagingDurationSeconds}
               onSaveSettings={handleSaveSettings}
+              onResetData={handleResetData}
             />
           ) : (
             <CoordinatesTopBar
-              colorMode={colorMode}
               currentProjectName={currentProjectName}
               onExport={handleExportCurrentProject}
               onAddCoordinate={() => setAddDialogOpen(true)}
               onExitProject={handleExitProject}
-              warmupSeconds={warmupSeconds}
-              averagingDurationSeconds={averagingDurationSeconds}
-              onSaveSettings={handleSaveSettings}
             />
           )}
         </Box>

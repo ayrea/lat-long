@@ -7,10 +7,7 @@ import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import Typography from "@mui/material/Typography";
 import { useState } from "react";
-import type { ColorMode } from "../theme";
-import type { SettingsValues } from "./SettingsDialog";
 import { AboutDialog } from "./AboutDialog";
-import { SettingsDialog } from "./SettingsDialog";
 
 function MenuIcon() {
   return (
@@ -27,29 +24,20 @@ function MenuIcon() {
 }
 
 interface CoordinatesTopBarProps {
-  colorMode: ColorMode;
   currentProjectName?: string;
   onExport: () => void;
   onAddCoordinate: () => void;
   onExitProject?: () => void;
-  warmupSeconds: number;
-  averagingDurationSeconds: number;
-  onSaveSettings: (settings: SettingsValues) => void;
 }
 
 export function CoordinatesTopBar({
-  colorMode,
   currentProjectName = "",
   onExport,
   onAddCoordinate,
   onExitProject,
-  warmupSeconds,
-  averagingDurationSeconds,
-  onSaveSettings,
 }: CoordinatesTopBarProps) {
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [aboutOpen, setAboutOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const menuOpen = Boolean(menuAnchor);
 
@@ -66,11 +54,6 @@ export function CoordinatesTopBar({
   const handleAboutClick = () => {
     handleMenuClose();
     setAboutOpen(true);
-  };
-
-  const handleSettingsClick = () => {
-    handleMenuClose();
-    setSettingsOpen(true);
   };
 
   const title =
@@ -136,21 +119,10 @@ export function CoordinatesTopBar({
         <MenuItem onClick={handleExportClick}>
           <ListItemText primary="Export" />
         </MenuItem>
-        <MenuItem onClick={handleSettingsClick}>
-          <ListItemText primary="Settings" />
-        </MenuItem>
         <MenuItem onClick={handleAboutClick}>
           <ListItemText primary="About" />
         </MenuItem>
       </Menu>
-      <SettingsDialog
-        open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-        initialColorMode={colorMode}
-        initialWarmupSeconds={warmupSeconds}
-        initialAveragingDurationSeconds={averagingDurationSeconds}
-        onSave={onSaveSettings}
-      />
       <AboutDialog open={aboutOpen} onClose={() => setAboutOpen(false)} />
     </>
   );

@@ -11,6 +11,7 @@ import Select from "@mui/material/Select";
 import TextField from "@mui/material/TextField";
 import { useEffect, useState } from "react";
 import type { ColorMode } from "../theme";
+import { ConfirmationDialog } from "./ConfirmationDialog";
 
 const WARMUP_MIN = 1;
 const WARMUP_MAX = 60;
@@ -30,6 +31,7 @@ interface SettingsDialogProps {
   initialWarmupSeconds: number;
   initialAveragingDurationSeconds: number;
   onSave: (settings: SettingsValues) => void;
+  onReset?: () => void | Promise<void>;
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -43,7 +45,9 @@ export function SettingsDialog({
   initialWarmupSeconds,
   initialAveragingDurationSeconds,
   onSave,
+  onReset,
 }: SettingsDialogProps) {
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   const [colorMode, setColorMode] = useState<ColorMode>(initialColorMode);
   const [warmupSeconds, setWarmupSeconds] = useState<string>(
     String(initialWarmupSeconds)
@@ -84,6 +88,12 @@ export function SettingsDialog({
       warmupSeconds: clamp(warmupNum, WARMUP_MIN, WARMUP_MAX),
       averagingDurationSeconds: clamp(durationNum, DURATION_MIN, DURATION_MAX),
     });
+    onClose();
+  };
+
+  const handleResetConfirm = async () => {
+    await onReset?.();
+    setResetConfirmOpen(false);
     onClose();
   };
 
@@ -137,6 +147,17 @@ export function SettingsDialog({
             }
             helperText={`${DURATION_MIN}–${DURATION_MAX}`}
           />
+          {onReset != null && (
+            <Box sx={{ pt: 2 }}>
+              <Button
+                color="error"
+                variant="outlined"
+                onClick={() => setResetConfirmOpen(true)}
+              >
+                Reset all data
+              </Button>
+            </Box>
+          )}
         </Box>
       </DialogContent>
       <DialogActions>
@@ -145,6 +166,15 @@ export function SettingsDialog({
           Save
         </Button>
       </DialogActions>
+      <ConfirmationDialog
+        open={resetConfirmOpen}
+        onClose={() => setResetConfirmOpen(false)}
+        onConfirm={handleResetConfirm}
+        title="Reset all data"
+        contentText="All projects and coordinates stored in this app will be permanently deleted. This cannot be undone. Continue?"
+        confirmButtonText="Reset"
+        confirmButtonColor="error"
+      />
     </Dialog>
   );
 }

@@ -33,6 +33,7 @@ interface ProjectTopBarProps {
   warmupSeconds: number;
   averagingDurationSeconds: number;
   onSaveSettings: (settings: SettingsValues) => void;
+  onResetData?: () => void | Promise<void>;
 }
 
 export function ProjectTopBar({
@@ -43,6 +44,7 @@ export function ProjectTopBar({
   warmupSeconds,
   averagingDurationSeconds,
   onSaveSettings,
+  onResetData,
 }: ProjectTopBarProps) {
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [aboutOpen, setAboutOpen] = useState(false);
@@ -135,6 +137,7 @@ export function ProjectTopBar({
         initialWarmupSeconds={warmupSeconds}
         initialAveragingDurationSeconds={averagingDurationSeconds}
         onSave={onSaveSettings}
+        onReset={onResetData}
       />
       <AboutDialog open={aboutOpen} onClose={() => setAboutOpen(false)} />
     </>
