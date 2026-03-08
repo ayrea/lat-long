@@ -32,6 +32,26 @@ export interface Coordinate {
   notes?: string;
 }
 
+/** A photo attached to a coordinate card. */
+export interface CoordinatePhoto {
+  /** UUID used for internal tracking. */
+  id: string;
+  /** Parent coordinate. */
+  coordinateId: string;
+  /** Parent project; for bulk-delete on project/coord deletion. */
+  projectId: string;
+  /** Original file name. */
+  fileName: string;
+  /** MIME type, e.g. image/jpeg. */
+  mimeType: string;
+  /** Image data; stored natively in IndexedDB. */
+  blob: Blob;
+  /** When the photo was added. */
+  createdDateTime: string;
+  /** Preserves display order. */
+  sortOrder: number;
+}
+
 export interface CRSInfo {
   code: string;
   name: string;

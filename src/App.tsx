@@ -145,6 +145,7 @@ export default function App() {
   );
 
   const handleDeleteProject = useCallback(async (projectId: string) => {
+    await db.photos.where("projectId").equals(projectId).delete();
     await db.coordinates.where("projectId").equals(projectId).delete();
     await db.projects.delete(projectId);
     if (selectedProjectId === projectId) {
@@ -280,6 +281,7 @@ export default function App() {
   );
 
   const handleDelete = useCallback((coordinateId: string) => {
+    void db.photos.where("coordinateId").equals(coordinateId).delete();
     void db.coordinates.delete(coordinateId);
   }, []);
 
@@ -497,6 +499,7 @@ export default function App() {
           ) : (
             <CoordinateForm
               coordinates={coordinates}
+              projectId={selectedProjectId}
               nextSuggestedName={getNextNumericName(coordinates)}
               addDialogOpen={addDialogOpen}
               onAddDialogOpen={() => setAddDialogOpen(true)}

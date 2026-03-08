@@ -1,4 +1,5 @@
 import Box from "@mui/material/Box";
+import Badge from "@mui/material/Badge";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
 import Chip from "@mui/material/Chip";
@@ -8,13 +9,19 @@ import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import Typography from "@mui/material/Typography";
 import MoreVert from "@mui/icons-material/MoreVert";
+import PhotoCamera from "@mui/icons-material/PhotoCamera";
+import { useLiveQuery } from "dexie-react-hooks";
 import { useState } from "react";
+import { db } from "../db";
 import type { Coordinate, CardType } from "../types";
 import type { AxisLabels } from "./CoordinateForm";
 import { CoordinateCard } from "./CoordinateCard";
+import { PhotosDialog } from "./PhotosDialog";
 
 interface CoordinateItemCardProps {
   coordinate: Coordinate;
+  /** Parent project ID (for Photos dialog). */
+  projectId: string;
   axisLabels: AxisLabels;
   /** Display name for the CRS (e.g. "WGS 84"). Shown as "Name (EPSG:code)" when set. */
   crsName?: string;
@@ -29,6 +36,7 @@ interface CoordinateItemCardProps {
 
 export function CoordinateItemCard({
   coordinate,
+  projectId,
   axisLabels,
   crsName,
   onTransform,
@@ -40,7 +48,14 @@ export function CoordinateItemCard({
   canProject,
 }: CoordinateItemCardProps) {
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const [photosDialogOpen, setPhotosDialogOpen] = useState(false);
   const menuOpen = Boolean(anchorEl);
+
+  const photoCount = useLiveQuery(
+    () => db.photos.where("coordinateId").equals(coordinate.id).count(),
+    [coordinate.id],
+  );
+  const count = photoCount ?? 0;
 
   const handleMenuOpen = (e: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(e.currentTarget);
@@ -70,6 +85,10 @@ export function CoordinateItemCard({
   const handleDelete = () => {
     handleMenuClose();
     onDelete(coordinate.id);
+  };
+  const handleOpenPhotos = () => {
+    handleMenuClose();
+    setPhotosDialogOpen(true);
   };
 
   const cardType: CardType = coordinate.cardType ?? "manual";
@@ -167,8 +186,26 @@ export function CoordinateItemCard({
               ) : null}
             </Box>
           </Box>
+          <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 0.5 }}>
+            <Badge badgeContent={count} color="primary" overlap="circular">
+              <IconButton
+                size="small"
+                aria-label={count === 0 ? "Add photos" : `Photos (${count})`}
+                onClick={() => setPhotosDialogOpen(true)}
+              >
+                <PhotoCamera fontSize="small" />
+              </IconButton>
+            </Badge>
+          </Box>
         </CardContent>
       </Card>
+      <PhotosDialog
+        open={photosDialogOpen}
+        onClose={() => setPhotosDialogOpen(false)}
+        coordinateId={coordinate.id}
+        coordinateName={coordinate.name}
+        projectId={projectId}
+      />
       <Menu
         id={`coordinate-card-menu-${coordinate.id}`}
         anchorEl={anchorEl}
@@ -207,6 +244,9 @@ export function CoordinateItemCard({
         )}
         <MenuItem onClick={handleRename}>
           <ListItemText primary="Rename" />
+        </MenuItem>
+        <MenuItem onClick={handleOpenPhotos}>
+          <ListItemText primary="Photos" />
         </MenuItem>
         <MenuItem onClick={handleAddNote}>
           <ListItemText

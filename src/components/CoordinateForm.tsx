@@ -32,6 +32,8 @@ export type AxisLabels = { first: string; second: string };
 
 interface CoordinateFormProps {
   coordinates: Coordinate[];
+  /** Current project ID (for photo attachments on cards). */
+  projectId: string;
   /** Default name shown when adding a new coordinate (e.g. "1", "2"). */
   nextSuggestedName: string;
   addDialogOpen: boolean;
@@ -67,6 +69,7 @@ function optionForCode(code: string, options: CRSOption[]): CRSOption {
 
 export function CoordinateForm({
   coordinates,
+  projectId,
   nextSuggestedName,
   addDialogOpen,
   onAddDialogOpen,
@@ -358,6 +361,7 @@ export function CoordinateForm({
       ) : (
         <CoordinateList
           coordinates={coordinates}
+          projectId={projectId}
           crsLabelsByCode={crsLabelsByCode}
           crsNameByCode={crsNameByCode}
           projectableCrsCodes={projectableCrsCodes}

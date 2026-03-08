@@ -8,6 +8,8 @@ const FALLBACK_LABELS: AxisLabels = { first: "X", second: "Y" };
 
 interface CoordinateListProps {
   coordinates: Coordinate[];
+  /** Current project ID (for photo attachments). */
+  projectId: string;
   crsLabelsByCode?: Record<string, AxisLabels>;
   /** CRS display name by code (e.g. "WGS 84" for 4326). */
   crsNameByCode?: Record<string, string>;
@@ -31,6 +33,7 @@ function getLabels(
 
 export function CoordinateList({
   coordinates,
+  projectId,
   crsLabelsByCode,
   crsNameByCode,
   projectableCrsCodes,
@@ -70,6 +73,7 @@ export function CoordinateList({
         >
           <CoordinateItemCard
             coordinate={coord}
+            projectId={projectId}
             axisLabels={getLabels(coord.crsCode, crsLabelsByCode)}
             crsName={crsNameByCode?.[coord.crsCode]}
             canProject={projectableCrsCodes.has(coord.crsCode)}

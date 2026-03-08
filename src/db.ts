@@ -1,5 +1,5 @@
 import Dexie, { type EntityTable } from "dexie";
-import type { Coordinate, Project } from "./types";
+import type { Coordinate, CoordinatePhoto, Project } from "./types";
 
 export interface ProjectRecord extends Project {
   /** Preserves display order since primary key is projectId. */
@@ -16,6 +16,7 @@ export interface CoordinateRecord extends Coordinate {
 class AppDatabase extends Dexie {
   projects!: EntityTable<ProjectRecord, "projectId">;
   coordinates!: EntityTable<CoordinateRecord, "id">;
+  photos!: EntityTable<CoordinatePhoto, "id">;
 
   constructor() {
     super("lat-long-db");
@@ -25,6 +26,9 @@ class AppDatabase extends Dexie {
     this.version(2).stores({
       coordinates: "id, sortOrder, projectId",
       projects: "projectId, sortOrder",
+    });
+    this.version(3).stores({
+      photos: "id, coordinateId, projectId, sortOrder",
     });
   }
 }
