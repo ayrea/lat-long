@@ -9,6 +9,7 @@ import ImageList from "@mui/material/ImageList";
 import ImageListItem from "@mui/material/ImageListItem";
 import Typography from "@mui/material/Typography";
 import AddPhotoAlternate from "@mui/icons-material/AddPhotoAlternate";
+import CameraAlt from "@mui/icons-material/CameraAlt";
 import ChevronLeft from "@mui/icons-material/ChevronLeft";
 import ChevronRight from "@mui/icons-material/ChevronRight";
 import Close from "@mui/icons-material/Close";
@@ -34,7 +35,12 @@ export function PhotosDialog({
   projectId,
 }: PhotosDialogProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+  const [cameraActive, setCameraActive] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [cameraLoading, setCameraLoading] = useState(false);
   const urlCacheRef = useRef<Map<string, string>>(new Map());
   const [, setUrlCacheVersion] = useState(0);
 
@@ -50,10 +56,57 @@ export function PhotosDialog({
   useEffect(() => {
     if (!open) {
       setViewerIndex(null);
+      setCameraActive(false);
+      setCameraError(null);
+      setCameraLoading(false);
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+      if (videoRef.current) videoRef.current.srcObject = null;
       urlCacheRef.current.forEach((url) => URL.revokeObjectURL(url));
       urlCacheRef.current.clear();
     }
   }, [open]);
+
+  // Request camera stream when entering camera mode; cleanup on exit
+  useEffect(() => {
+    if (!open || !cameraActive) return;
+    const video = videoRef.current;
+    if (!video) return;
+
+    setCameraLoading(true);
+    setCameraError(null);
+    const hasGetUserMedia =
+      typeof navigator !== "undefined" &&
+      typeof navigator.mediaDevices?.getUserMedia === "function";
+    if (!hasGetUserMedia) {
+      setCameraError("Camera not supported in this browser.");
+      setCameraActive(false);
+      setCameraLoading(false);
+      return;
+    }
+
+    navigator.mediaDevices
+      .getUserMedia({ video: true })
+      .then((stream) => {
+        streamRef.current = stream;
+        video.srcObject = stream;
+        video.play().catch(() => {});
+        setCameraLoading(false);
+      })
+      .catch((err: unknown) => {
+        const message =
+          err instanceof Error ? err.message : "Could not access camera.";
+        setCameraError(message);
+        setCameraActive(false);
+        setCameraLoading(false);
+      });
+
+    return () => {
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+      video.srcObject = null;
+    };
+  }, [open, cameraActive]);
 
   const getOrCreateObjectUrl = useCallback((photo: CoordinatePhoto): string => {
     const cache = urlCacheRef.current;
@@ -79,8 +132,51 @@ export function PhotosDialog({
   const currentPhoto = viewerIndex != null ? list[viewerIndex] : null;
   const currentUrl =
     currentPhoto != null ? getOrCreateObjectUrl(currentPhoto) : "";
+  const hasCameraAPI =
+    typeof navigator !== "undefined" &&
+    typeof navigator.mediaDevices?.getUserMedia === "function";
 
   const handleAddClick = () => fileInputRef.current?.click();
+
+  const handleTakePhotoClick = () => {
+    setCameraError(null);
+    setCameraActive(true);
+  };
+
+  const handleCloseCamera = () => {
+    setCameraActive(false);
+  };
+
+  const handleCaptureClick = useCallback(() => {
+    const video = videoRef.current;
+    const stream = streamRef.current;
+    if (!video || !stream || video.videoWidth === 0 || video.videoHeight === 0)
+      return;
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.drawImage(video, 0, 0);
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) return;
+        const now = Date.now();
+        void db.photos.add({
+          id: crypto.randomUUID(),
+          coordinateId,
+          projectId,
+          fileName: "camera-capture.jpg",
+          mimeType: "image/jpeg",
+          blob,
+          createdDateTime: new Date().toISOString(),
+          sortOrder: now,
+        });
+      },
+      "image/jpeg",
+      0.92,
+    );
+  }, [coordinateId, projectId]);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -135,7 +231,84 @@ export function PhotosDialog({
       <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
         <DialogTitle>Photos — {coordinateName}</DialogTitle>
         <DialogContent>
-          {list.length === 0 ? (
+          {cameraError != null ? (
+            <Box
+              sx={{
+                py: 2,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 1,
+              }}
+            >
+              <Typography color="error">{cameraError}</Typography>
+              <Typography variant="body2" color="text.secondary">
+                Use &quot;Choose from device&quot; to add photos from your
+                gallery or file picker.
+              </Typography>
+            </Box>
+          ) : cameraActive ? (
+            <Box
+              sx={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 2,
+              }}
+            >
+              <Box
+                sx={{
+                  width: "100%",
+                  maxHeight: 360,
+                  bgcolor: "black",
+                  borderRadius: 1,
+                  overflow: "hidden",
+                  position: "relative",
+                }}
+              >
+                <Box
+                  component="video"
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  sx={{
+                    width: "100%",
+                    height: "auto",
+                    display: "block",
+                  }}
+                />
+                {cameraLoading && (
+                  <Box
+                    sx={{
+                      position: "absolute",
+                      inset: 0,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      bgcolor: "rgba(0,0,0,0.5)",
+                    }}
+                  >
+                    <Typography color="white">Starting camera…</Typography>
+                  </Box>
+                )}
+              </Box>
+              <Box sx={{ display: "flex", gap: 1 }}>
+                <Button
+                  variant="contained"
+                  startIcon={<CameraAlt />}
+                  onClick={handleCaptureClick}
+                  disabled={cameraLoading}
+                  aria-label="Capture photo"
+                >
+                  Capture
+                </Button>
+                <Button variant="outlined" onClick={handleCloseCamera}>
+                  Close camera
+                </Button>
+              </Box>
+            </Box>
+          ) : list.length === 0 ? (
             <Box
               sx={{
                 py: 4,
@@ -191,6 +364,12 @@ export function PhotosDialog({
                         e.stopPropagation();
                         handleDelete(photo.id);
                       }}
+                      sx={{
+                        color: "white",
+                        "&:hover": {
+                          backgroundColor: "rgba(0,0,0,0.6)",
+                        },
+                      }}
                     >
                       <Delete fontSize="small" />
                     </IconButton>
@@ -211,9 +390,25 @@ export function PhotosDialog({
           />
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleAddClick} startIcon={<AddPhotoAlternate />}>
-            Add photos
-          </Button>
+          {!cameraActive && (
+            <>
+              <Button
+                onClick={handleTakePhotoClick}
+                startIcon={<CameraAlt />}
+                aria-label="Take photo with camera"
+                disabled={!hasCameraAPI}
+              >
+                Take photo
+              </Button>
+              <Button
+                onClick={handleAddClick}
+                startIcon={<AddPhotoAlternate />}
+                aria-label="Choose from device"
+              >
+                Choose from device
+              </Button>
+            </>
+          )}
           <Button onClick={onClose}>Close</Button>
         </DialogActions>
       </Dialog>
