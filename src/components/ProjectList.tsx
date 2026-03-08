@@ -11,12 +11,14 @@ interface ProjectListProps {
   onSelectProject: (projectId: string) => void;
   onAddProjectClick: () => void;
   onDeleteProject: (projectId: string) => void;
+  onExportProject: (projectId: string) => void;
 }
 
 export function ProjectList({
   onSelectProject,
   onAddProjectClick,
   onDeleteProject,
+  onExportProject,
 }: ProjectListProps) {
   const projects = useLiveQuery(
     () => db.projects.orderBy("sortOrder").toArray(),
@@ -86,6 +88,7 @@ export function ProjectList({
                 project={project}
                 onSelect={onSelectProject}
                 onDeleteRequest={handleDeleteRequest}
+                onExportRequest={onExportProject}
               />
             ))}
           </Box>

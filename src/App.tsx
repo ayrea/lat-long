@@ -358,6 +358,61 @@ export default function App() {
     URL.revokeObjectURL(url);
   }, []);
 
+  const handleExportProject = useCallback(async (projectId: string) => {
+    const proj = await db.projects.get(projectId);
+    if (!proj) return;
+    const projectCoordinates = await db.coordinates
+      .where("projectId")
+      .equals(projectId)
+      .sortBy("sortOrder");
+    const codes = new Set(projectCoordinates.map((c) => c.crsCode));
+    const crsNameByCode: Record<string, string> = {};
+    await Promise.all(
+      Array.from(codes).map(async (code) => {
+        const info = await loadCrs(code);
+        crsNameByCode[code] = info?.name ?? "";
+      })
+    );
+    const headers = [
+      "ProjectId",
+      "ProjectName",
+      "ProjectNotes",
+      "ProjectCreatedDateTime",
+      "Id",
+      "Name",
+      "CRS Code",
+      "CRS Name",
+      "X",
+      "Y",
+      "Notes",
+    ];
+    const rows = projectCoordinates.map((c) => [
+      c.projectId,
+      proj.projectName ?? "",
+      proj.notes ?? "",
+      proj.createdDateTime ?? "",
+      c.id,
+      c.name,
+      c.crsCode,
+      crsNameByCode[c.crsCode] ?? "",
+      c.x,
+      c.y,
+      c.notes ?? "",
+    ]);
+    const csv =
+      headers.map(escapeCsvCell).join(",") +
+      "\n" +
+      rows.map((r) => r.map(escapeCsvCell).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const safeName = proj.projectName.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 50);
+    a.download = `coordinates-export-${safeName}-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, []);
+
   const currentProjectName =
     projects.find((p) => p.projectId === selectedProjectId)?.projectName ?? "";
   const view = selectedProjectId == null ? "projects" : "coordinates";
@@ -414,6 +469,7 @@ export default function App() {
               onSelectProject={handleSelectProject}
               onAddProjectClick={() => setAddProjectDialogOpen(true)}
               onDeleteProject={handleDeleteProject}
+              onExportProject={handleExportProject}
             />
           ) : (
             <CoordinateForm
