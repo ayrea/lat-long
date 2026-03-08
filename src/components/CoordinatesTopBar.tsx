@@ -101,7 +101,7 @@ export function CoordinatesTopBar({
             </IconButton>
           )}
           <Typography variant="h6" component="h1" noWrap sx={{ minWidth: 0 }}>
-            {title}
+            Project: {title}
           </Typography>
         </Box>
         <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, flexShrink: 0 }}>

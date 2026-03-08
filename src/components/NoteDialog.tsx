@@ -52,7 +52,7 @@ export function NoteDialog({
           onChange={(e) => setValue(e.target.value)}
           size="small"
           multiline
-          minRows={3}
+          minRows={6}
           sx={{ mt: 1, minWidth: 280 }}
         />
       </DialogContent>

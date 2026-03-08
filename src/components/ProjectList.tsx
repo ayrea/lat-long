@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db, type ProjectRecord } from "../db";
 import { ConfirmationDialog } from "./ConfirmationDialog";
+import { NoteDialog } from "./NoteDialog";
 import { ProjectCard } from "./ProjectCard";
 
 interface ProjectListProps {
@@ -12,6 +13,7 @@ interface ProjectListProps {
   onAddProjectClick: () => void;
   onDeleteProject: (projectId: string) => void;
   onExportProject: (projectId: string) => void;
+  onUpdateProjectNote: (projectId: string, notes: string) => void;
 }
 
 export function ProjectList({
@@ -19,6 +21,7 @@ export function ProjectList({
   onAddProjectClick,
   onDeleteProject,
   onExportProject,
+  onUpdateProjectNote,
 }: ProjectListProps) {
   const projects = useLiveQuery(
     () => db.projects.orderBy("sortOrder").toArray(),
@@ -29,6 +32,8 @@ export function ProjectList({
   const [pendingDeleteProjectId, setPendingDeleteProjectId] = useState<
     string | null
   >(null);
+  const [noteDialogOpen, setNoteDialogOpen] = useState(false);
+  const [noteProjectId, setNoteProjectId] = useState<string | null>(null);
 
   const handleDeleteRequest = (projectId: string) => {
     setPendingDeleteProjectId(projectId);
@@ -47,6 +52,13 @@ export function ProjectList({
     setDeleteConfirmOpen(false);
     setPendingDeleteProjectId(null);
   };
+
+  const handleOpenNote = (projectId: string) => {
+    setNoteProjectId(projectId);
+    setNoteDialogOpen(true);
+  };
+
+  const noteProject = projects.find((p) => p.projectId === noteProjectId);
 
   return (
     <>
@@ -89,6 +101,7 @@ export function ProjectList({
                 onSelect={onSelectProject}
                 onDeleteRequest={handleDeleteRequest}
                 onExportRequest={onExportProject}
+                onAddOrEditNote={handleOpenNote}
               />
             ))}
           </Box>
@@ -101,6 +114,17 @@ export function ProjectList({
         title="Delete project"
         contentText="Are you sure you want to delete this project? All coordinates in this project will also be deleted. This cannot be undone."
         confirmButtonText="Delete"
+      />
+      <NoteDialog
+        open={noteDialogOpen}
+        onClose={() => {
+          setNoteDialogOpen(false);
+          setNoteProjectId(null);
+        }}
+        coordinateId={noteProjectId}
+        initialNote={noteProject?.notes ?? ""}
+        title={noteProject?.notes ? "Edit note" : "Add note"}
+        onSave={(id, notes) => onUpdateProjectNote(id, notes)}
       />
     </>
   );

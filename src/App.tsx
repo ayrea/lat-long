@@ -281,6 +281,13 @@ export default function App() {
     void db.coordinates.update(coordinateId, { notes });
   }, []);
 
+  const handleUpdateProjectNote = useCallback(
+    (projectId: string, notes: string) => {
+      void db.projects.update(projectId, { notes });
+    },
+    []
+  );
+
   const handleFindBearing = useCallback(
     (sourceCoordinateId: string, targetCoordinateId: string) => {
       setError(null);
@@ -478,6 +485,7 @@ export default function App() {
               onAddProjectClick={() => setAddProjectDialogOpen(true)}
               onDeleteProject={handleDeleteProject}
               onExportProject={handleExportProject}
+              onUpdateProjectNote={handleUpdateProjectNote}
             />
           ) : (
             <CoordinateForm
