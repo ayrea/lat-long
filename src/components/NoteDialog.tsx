@@ -4,7 +4,7 @@ import DialogActions from "@mui/material/DialogActions";
 import DialogContent from "@mui/material/DialogContent";
 import DialogTitle from "@mui/material/DialogTitle";
 import TextField from "@mui/material/TextField";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface NoteDialogProps {
   open: boolean;
@@ -24,6 +24,7 @@ export function NoteDialog({
   onSave,
 }: NoteDialogProps) {
   const [value, setValue] = useState(initialNote);
+  const notesInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (open) setValue(initialNote);
@@ -42,7 +43,13 @@ export function NoteDialog({
   };
 
   return (
-    <Dialog open={open} onClose={handleClose}>
+    <Dialog
+      open={open}
+      onClose={handleClose}
+      TransitionProps={{
+        onEntered: () => notesInputRef.current?.focus(),
+      }}
+    >
       <DialogTitle>{title}</DialogTitle>
       <DialogContent>
         <TextField
@@ -54,6 +61,7 @@ export function NoteDialog({
           multiline
           minRows={6}
           sx={{ mt: 1, minWidth: 280 }}
+          inputRef={notesInputRef}
         />
       </DialogContent>
       <DialogActions>
