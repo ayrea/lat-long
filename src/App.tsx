@@ -8,7 +8,8 @@ import { db, type CoordinateRecord, type ProjectRecord } from "./db";
 import { AddProjectDialog } from "./components/AddProjectDialog";
 import { CoordinateForm } from "./components/CoordinateForm";
 import { ProjectList } from "./components/ProjectList";
-import { TopBar } from "./components/TopBar";
+import { CoordinatesTopBar } from "./components/CoordinatesTopBar";
+import { ProjectTopBar } from "./components/ProjectTopBar";
 import type { SettingsValues } from "./components/SettingsDialog";
 import { getAppTheme, type ColorMode } from "./theme";
 import { loadCrs, setStoredDefaultCrs } from "./crs";
@@ -415,7 +416,6 @@ export default function App() {
 
   const currentProjectName =
     projects.find((p) => p.projectId === selectedProjectId)?.projectName ?? "";
-  const view = selectedProjectId == null ? "projects" : "coordinates";
 
   return (
     <ThemeProvider theme={getAppTheme(colorMode)}>
@@ -433,20 +433,28 @@ export default function App() {
         }}
       >
         <Box sx={{ flexShrink: 0 }}>
-          <TopBar
-            view={view}
-            colorMode={colorMode}
-            hasCoordinates={coordinates.length > 0}
-            hasProjects={projects.length > 0}
-            currentProjectName={currentProjectName}
-            onExport={handleExport}
-            onAddCoordinate={() => setAddDialogOpen(true)}
-            onAddProject={() => setAddProjectDialogOpen(true)}
-            onExitProject={handleExitProject}
-            warmupSeconds={warmupSeconds}
-            averagingDurationSeconds={averagingDurationSeconds}
-            onSaveSettings={handleSaveSettings}
-          />
+          {selectedProjectId == null ? (
+            <ProjectTopBar
+              colorMode={colorMode}
+              hasProjects={projects.length > 0}
+              onExport={handleExport}
+              onAddProject={() => setAddProjectDialogOpen(true)}
+              warmupSeconds={warmupSeconds}
+              averagingDurationSeconds={averagingDurationSeconds}
+              onSaveSettings={handleSaveSettings}
+            />
+          ) : (
+            <CoordinatesTopBar
+              colorMode={colorMode}
+              currentProjectName={currentProjectName}
+              onExport={handleExport}
+              onAddCoordinate={() => setAddDialogOpen(true)}
+              onExitProject={handleExitProject}
+              warmupSeconds={warmupSeconds}
+              averagingDurationSeconds={averagingDurationSeconds}
+              onSaveSettings={handleSaveSettings}
+            />
+          )}
         </Box>
         {error != null && (
           <Alert

@@ -1,5 +1,4 @@
 import Add from "@mui/icons-material/Add";
-import ArrowBack from "@mui/icons-material/ArrowBack";
 import Box from "@mui/material/Box";
 import IconButton from "@mui/material/IconButton";
 import ListItemText from "@mui/material/ListItemText";
@@ -26,45 +25,31 @@ function MenuIcon() {
   );
 }
 
-export type TopBarView = "projects" | "coordinates";
-
-interface TopBarProps {
-  view: TopBarView;
+interface ProjectTopBarProps {
   colorMode: ColorMode;
-  hasCoordinates: boolean;
   hasProjects: boolean;
-  currentProjectName?: string;
   onExport: () => void;
-  onAddCoordinate: () => void;
   onAddProject?: () => void;
-  onExitProject?: () => void;
   warmupSeconds: number;
   averagingDurationSeconds: number;
   onSaveSettings: (settings: SettingsValues) => void;
 }
 
-export function TopBar({
-  view,
+export function ProjectTopBar({
   colorMode,
-  hasCoordinates: _hasCoordinates,
   hasProjects,
-  currentProjectName = "",
   onExport,
-  onAddCoordinate,
   onAddProject,
-  onExitProject,
   warmupSeconds,
   averagingDurationSeconds,
   onSaveSettings,
-}: TopBarProps) {
+}: ProjectTopBarProps) {
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [aboutOpen, setAboutOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const menuOpen = Boolean(menuAnchor);
-  const isProjectsView = view === "projects";
-  const canExport = isProjectsView ? hasProjects : true;
-  const addAction = isProjectsView ? onAddProject : onAddCoordinate;
+  const canExport = hasProjects;
 
   const handleMenuOpen = (e: React.MouseEvent<HTMLElement>) => {
     setMenuAnchor(e.currentTarget);
@@ -86,13 +71,6 @@ export function TopBar({
     setSettingsOpen(true);
   };
 
-  const title =
-    isProjectsView
-      ? "Coordinate Helper"
-      : (currentProjectName.length > 24
-        ? `${currentProjectName.slice(0, 24)}…`
-        : currentProjectName) || "Project";
-
   return (
     <>
       <Box
@@ -105,25 +83,15 @@ export function TopBar({
         }}
       >
         <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, minWidth: 0 }}>
-          {!isProjectsView && onExitProject != null && (
-            <IconButton
-              onClick={onExitProject}
-              aria-label="Exit project"
-              size="small"
-              sx={{ flexShrink: 0 }}
-            >
-              <ArrowBack />
-            </IconButton>
-          )}
           <Typography variant="h6" component="h1" noWrap sx={{ minWidth: 0 }}>
-            {title}
+            Coordinate Helper
           </Typography>
         </Box>
         <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, flexShrink: 0 }}>
-          {addAction != null && (
+          {onAddProject != null && (
             <IconButton
-              onClick={addAction}
-              aria-label={isProjectsView ? "Add project" : "Add coordinate"}
+              onClick={onAddProject}
+              aria-label="Add project"
               size="small"
             >
               <Add />
