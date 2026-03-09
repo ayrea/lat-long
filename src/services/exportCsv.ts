@@ -12,7 +12,7 @@ function downloadCsv(filename: string, csv: string): void {
   URL.revokeObjectURL(url);
 }
 
-const CSV_HEADERS = [
+const CSV_HEADERS: (string | number)[] = [
   "ProjectId",
   "ProjectName",
   "ProjectNotes",
@@ -24,7 +24,7 @@ const CSV_HEADERS = [
   "X",
   "Y",
   "Notes",
-] as const;
+];
 
 async function loadCrsNames(
   codes: Set<string>,

@@ -8,6 +8,7 @@ export interface UseProjectsResult {
   addProject: (projectName: string, notes: string) => Promise<string>;
   deleteProject: (projectId: string) => Promise<void>;
   updateProjectNote: (projectId: string, notes: string) => void;
+  renameProject: (projectId: string, projectName: string) => void;
   resetAllData: () => Promise<void>;
 }
 
@@ -44,6 +45,13 @@ export function useProjects(): UseProjectsResult {
     void db.projects.update(projectId, { notes });
   }, []);
 
+  const renameProject = useCallback(
+    (projectId: string, projectName: string) => {
+      void db.projects.update(projectId, { projectName });
+    },
+    [],
+  );
+
   const resetAllData = useCallback(async () => {
     await db.coordinates.clear();
     await db.projects.clear();
@@ -54,6 +62,7 @@ export function useProjects(): UseProjectsResult {
     addProject,
     deleteProject,
     updateProjectNote,
+    renameProject,
     resetAllData,
   };
 }

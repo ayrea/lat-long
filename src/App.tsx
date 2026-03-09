@@ -17,15 +17,20 @@ import {
   getStoredColorMode,
   getStoredGpsAveragingDurationSeconds,
   getStoredGpsWarmupSeconds,
-  parseStoredInt,
   setStoredColorMode,
   setStoredGpsAveragingDurationSeconds,
   setStoredGpsWarmupSeconds,
 } from "./utils/storage";
 
 export default function App() {
-  const { projects, addProject, deleteProject, updateProjectNote, resetAllData } =
-    useProjects();
+  const {
+    projects,
+    addProject,
+    deleteProject,
+    updateProjectNote,
+    renameProject,
+    resetAllData,
+  } = useProjects();
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
     null,
   );
@@ -99,6 +104,15 @@ export default function App() {
     [updateProjectNote]
   );
 
+  const handleRenameProject = useCallback(
+    (newName: string) => {
+      if (selectedProjectId != null) {
+        renameProject(selectedProjectId, newName);
+      }
+    },
+    [renameProject, selectedProjectId]
+  );
+
   const handleExport = useCallback(() => {
     void exportAllCoordinatesToCsv();
   }, []);
@@ -146,6 +160,7 @@ export default function App() {
               currentProjectName={currentProjectName}
               onExport={handleExportCurrentProject}
               onAddCoordinate={() => setAddDialogOpen(true)}
+              onRenameProject={handleRenameProject}
               onExitProject={handleExitProject}
             />
           )}

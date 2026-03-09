@@ -63,6 +63,7 @@ interface CoordinateFormProps {
   onDelete: (coordinateId: string) => void;
   warmupSeconds: number;
   averagingDurationSeconds: number;
+  onExitProject?: () => void;
 }
 
 function optionForCode(code: string, options: CRSOption[]): CRSOption {
