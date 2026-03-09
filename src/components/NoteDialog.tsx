@@ -9,16 +9,17 @@ import { useEffect, useRef, useState } from "react";
 interface NoteDialogProps {
   open: boolean;
   onClose: () => void;
-  coordinateId: string | null;
+  /** Identifier of the entity this note is attached to (coordinate or project). */
+  entityId: string | null;
   initialNote: string;
   title: string;
-  onSave: (coordinateId: string, notes: string) => void;
+  onSave: (entityId: string, notes: string) => void;
 }
 
 export function NoteDialog({
   open,
   onClose,
-  coordinateId,
+  entityId,
   initialNote,
   title,
   onSave,
@@ -36,8 +37,8 @@ export function NoteDialog({
   };
 
   const handleConfirm = () => {
-    if (coordinateId != null) {
-      onSave(coordinateId, value);
+    if (entityId != null) {
+      onSave(entityId, value);
       handleClose();
     }
   };

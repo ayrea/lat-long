@@ -32,6 +32,8 @@ let mockIndex = 0;
 const WARMUP_MS = 30_000;
 const COLLECTION_MS = 60_000;
 const MAX_ACCURACY_M = 10;
+const NO_VALID_SAMPLES_ERROR_MSG =
+  "No valid samples (accuracy ≤ 10 m required)";
 
 export interface AccuratePositionProgress {
   phase: "warmup" | "collecting";
@@ -65,6 +67,16 @@ export interface GetAccuratePositionOptions {
   warmupMs?: number;
   /** Collection duration in ms. Defaults to 60_000. */
   collectionMs?: number;
+}
+
+function makeGeoError(code: number, message: string): GeolocationPositionError {
+  return {
+    code,
+    message,
+    PERMISSION_DENIED: 1,
+    POSITION_UNAVAILABLE: 2,
+    TIMEOUT: 3,
+  };
 }
 
 function createMockPosition(
@@ -161,13 +173,7 @@ export function getAccuratePosition(
   }
 
   if (typeof navigator === "undefined" || !navigator.geolocation) {
-    onError({
-      code: 2,
-      message: "Geolocation not available",
-      PERMISSION_DENIED: 1,
-      POSITION_UNAVAILABLE: 2,
-      TIMEOUT: 3,
-    });
+    onError(makeGeoError(2, "Geolocation not available"));
     return () => {};
   }
 
@@ -227,13 +233,7 @@ export function getAccuratePosition(
           durationMs: collectionMs,
         });
       } else {
-        onError({
-          code: 2,
-          message: "No valid samples (accuracy ≤ 10 m required)",
-          PERMISSION_DENIED: 1,
-          POSITION_UNAVAILABLE: 2,
-          TIMEOUT: 3,
-        });
+        onError(makeGeoError(2, NO_VALID_SAMPLES_ERROR_MSG));
       }
       return;
     }
@@ -324,13 +324,7 @@ function runAccuratePositionMock(
           durationMs: collectionMs,
         });
       } else {
-        onError({
-          code: 2,
-          message: "No valid samples (accuracy ≤ 10 m required)",
-          PERMISSION_DENIED: 1,
-          POSITION_UNAVAILABLE: 2,
-          TIMEOUT: 3,
-        });
+        onError(makeGeoError(2, NO_VALID_SAMPLES_ERROR_MSG));
       }
       return;
     }

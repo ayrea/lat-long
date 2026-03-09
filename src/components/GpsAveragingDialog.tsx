@@ -30,6 +30,32 @@ interface GpsAveragingDialogProps {
   averagingDurationSeconds?: number;
 }
 
+function computeProgressPercent(
+  progress: AccuratePositionProgress | null,
+  warmupMs: number,
+  collectionMs: number,
+): number {
+  if (progress == null) {
+    return 100;
+  }
+
+  const totalMs = warmupMs + collectionMs;
+
+  if (progress.phase === "warmup") {
+    const remaining = progress.warmupRemainingMs ?? 0;
+    const warmupPortion = warmupMs / totalMs;
+    return (1 - remaining / warmupMs) * warmupPortion * 100;
+  }
+
+  const elapsedCollectingMs = progress.collectingElapsedMs ?? 0;
+  const warmupPercent = (warmupMs / totalMs) * 100;
+  const collectingPortion = collectionMs / totalMs;
+  return (
+    warmupPercent +
+    (elapsedCollectingMs / collectionMs) * collectingPortion * 100
+  );
+}
+
 export function GpsAveragingDialog({
   open,
   onClose,
@@ -40,7 +66,6 @@ export function GpsAveragingDialog({
 }: GpsAveragingDialogProps) {
   const warmupMs = warmupSeconds * 1000;
   const collectionMs = averagingDurationSeconds * 1000;
-  const totalMs = warmupMs + collectionMs;
   const [progress, setProgress] = useState<AccuratePositionProgress | null>(
     null
   );
@@ -118,17 +143,7 @@ export function GpsAveragingDialog({
     };
   }, [open, warmupMs, collectionMs]);
 
-  const progressPercent =
-    progress != null
-      ? progress.phase === "warmup"
-        ? (1 - (progress.warmupRemainingMs ?? 0) / warmupMs) *
-          (warmupMs / totalMs) *
-          100
-        : (warmupMs / totalMs) * 100 +
-          ((progress.collectingElapsedMs ?? 0) / collectionMs) *
-            (collectionMs / totalMs) *
-            100
-      : 100;
+  const progressPercent = computeProgressPercent(progress, warmupMs, collectionMs);
 
   return (
     <Dialog

@@ -10,10 +10,6 @@ export function projectFromBearingDistance(
   distance: number
 ): { easting: number; northing: number } {
   if (
-    typeof easting !== "number" ||
-    typeof northing !== "number" ||
-    typeof bearingDeg !== "number" ||
-    typeof distance !== "number" ||
     !Number.isFinite(easting) ||
     !Number.isFinite(northing) ||
     !Number.isFinite(bearingDeg) ||
@@ -42,10 +38,6 @@ export function bearingDistanceBetween(
   toNorthing: number
 ): { bearingDeg: number; distance: number } {
   if (
-    typeof fromEasting !== "number" ||
-    typeof fromNorthing !== "number" ||
-    typeof toEasting !== "number" ||
-    typeof toNorthing !== "number" ||
     !Number.isFinite(fromEasting) ||
     !Number.isFinite(fromNorthing) ||
     !Number.isFinite(toEasting) ||

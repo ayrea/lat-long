@@ -11,8 +11,6 @@ export function transformCoordinate(
   y: number
 ): [number, number] {
   if (
-    typeof x !== "number" ||
-    typeof y !== "number" ||
     !Number.isFinite(x) ||
     !Number.isFinite(y)
   ) {

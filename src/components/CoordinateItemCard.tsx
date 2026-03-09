@@ -34,6 +34,35 @@ interface CoordinateItemCardProps {
   canProject: boolean;
 }
 
+const CARD_TYPE_STYLES: Record<
+  CardType,
+  {
+    label: string;
+    chipBg: string;
+    menuBg: string;
+    menuHoverBg: string;
+  }
+> = {
+  manual: {
+    label: "Manual",
+    chipBg: "#fdd835",
+    menuBg: "#fdd835",
+    menuHoverBg: "rgba(253, 216, 53, 0.9)",
+  },
+  project: {
+    label: "Project",
+    chipBg: "#42a5f5",
+    menuBg: "#42a5f5",
+    menuHoverBg: "rgba(66, 165, 245, 0.9)",
+  },
+  transform: {
+    label: "Transform",
+    chipBg: "#66bb6a",
+    menuBg: "#66bb6a",
+    menuHoverBg: "rgba(102, 187, 106, 0.9)",
+  },
+};
+
 export function CoordinateItemCard({
   coordinate,
   projectId,
@@ -92,15 +121,7 @@ export function CoordinateItemCard({
   };
 
   const cardType: CardType = coordinate.cardType ?? "manual";
-  const chipConfig: Record<
-    CardType,
-    { label: string; bgcolor: string }
-  > = {
-    manual: { label: "Manual", bgcolor: "#fdd835" },
-    project: { label: "Project", bgcolor: "#42a5f5" },
-    transform: { label: "Transform", bgcolor: "#66bb6a" },
-  };
-  const { label: chipLabel, bgcolor: chipBg } = chipConfig[cardType];
+  const { label: chipLabel, chipBg } = CARD_TYPE_STYLES[cardType];
 
   return (
     <>
@@ -218,9 +239,11 @@ export function CoordinateItemCard({
         <MenuItem
           onClick={handleTransform}
           sx={{
-            backgroundColor: "#66bb6a",
+            backgroundColor: CARD_TYPE_STYLES.transform.menuBg,
             color: "rgba(0,0,0,0.87)",
-            "&:hover": { backgroundColor: "rgba(102, 187, 106, 0.9)" },
+            "&:hover": {
+              backgroundColor: CARD_TYPE_STYLES.transform.menuHoverBg,
+            },
           }}
         >
           <ListItemText primary="Transform" />
@@ -229,9 +252,11 @@ export function CoordinateItemCard({
           <MenuItem
             onClick={handleProject}
             sx={{
-              backgroundColor: "#42a5f5",
+              backgroundColor: CARD_TYPE_STYLES.project.menuBg,
               color: "rgba(0,0,0,0.87)",
-              "&:hover": { backgroundColor: "rgba(66, 165, 245, 0.9)" },
+              "&:hover": {
+                backgroundColor: CARD_TYPE_STYLES.project.menuHoverBg,
+              },
             }}
           >
             <ListItemText primary="Project" />

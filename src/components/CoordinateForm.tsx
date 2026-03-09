@@ -30,6 +30,15 @@ const FALLBACK_LABELS = { first: "X", second: "Y" } as const;
 
 export type AxisLabels = { first: string; second: string };
 
+type ActiveDialog =
+  | { type: "transform"; coordinateId: string }
+  | { type: "project"; coordinateId: string }
+  | { type: "rename"; coordinateId: string }
+  | { type: "note"; coordinateId: string }
+  | { type: "findBearing"; coordinateId: string }
+  | { type: "delete"; coordinateId: string }
+  | { type: "gpsAveraging" };
+
 interface CoordinateFormProps {
   coordinates: Coordinate[];
   /** Current project ID (for photo attachments on cards). */
@@ -52,7 +61,6 @@ interface CoordinateFormProps {
   onUpdateNote: (coordinateId: string, notes: string) => void;
   onFindBearing: (sourceCoordinateId: string, targetCoordinateId: string) => void;
   onDelete: (coordinateId: string) => void;
-  onExitProject?: () => void;
   warmupSeconds: number;
   averagingDurationSeconds: number;
 }
@@ -81,7 +89,6 @@ export function CoordinateForm({
   onUpdateNote,
   onFindBearing,
   onDelete,
-  onExitProject: _onExitProject,
   warmupSeconds,
   averagingDurationSeconds,
 }: CoordinateFormProps) {
@@ -98,6 +105,7 @@ export function CoordinateForm({
   const [projectableCrsCodes, setProjectableCrsCodes] = useState<Set<string>>(
     () => new Set()
   );
+  const [activeDialog, setActiveDialog] = useState<ActiveDialog | null>(null);
 
   const [formCrsCode, setFormCrsCode] = useState(
     () => getStoredDefaultCrs() || DEFAULT_CRS_CODE
@@ -106,38 +114,10 @@ export function CoordinateForm({
   const [formX, setFormX] = useState("");
   const [formY, setFormY] = useState("");
 
-  const [transformDialogOpen, setTransformDialogOpen] = useState(false);
-  const [transformCoordinateId, setTransformCoordinateId] = useState<
-    string | null
-  >(null);
-
-  const [projectDialogOpen, setProjectDialogOpen] = useState(false);
-  const [projectCoordinateId, setProjectCoordinateId] = useState<
-    string | null
-  >(null);
-
-  const [renameDialogOpen, setRenameDialogOpen] = useState(false);
-  const [renameCoordinateId, setRenameCoordinateId] = useState<string | null>(
-    null
-  );
-
-  const [noteDialogOpen, setNoteDialogOpen] = useState(false);
-  const [noteCoordinateId, setNoteCoordinateId] = useState<string | null>(null);
-
-  const [findBearingDialogOpen, setFindBearingDialogOpen] = useState(false);
-  const [findBearingSourceId, setFindBearingSourceId] = useState<string | null>(
-    null
-  );
-
-  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
-
   const [geoLoading, setGeoLoading] = useState(false);
   const [geoUnavailable, setGeoUnavailable] = useState(false);
   const [geoPermissionDenied, setGeoPermissionDenied] = useState(false);
   const [geoSbOpen, setGeoSbOpen] = useState(false);
-
-  const [gpsAveragingDialogOpen, setGpsAveragingDialogOpen] = useState(false);
 
   const isWgs84Form = formCrsCode === DEFAULT_CRS_CODE;
   const geoAvailable = isGeolocationAvailable();
@@ -271,46 +251,38 @@ export function CoordinateForm({
   };
 
   const handleOpenTransform = (id: string) => {
-    setTransformCoordinateId(id);
-    setTransformDialogOpen(true);
+    setActiveDialog({ type: "transform", coordinateId: id });
   };
 
   const handleOpenProject = (id: string) => {
-    setProjectCoordinateId(id);
-    setProjectDialogOpen(true);
+    setActiveDialog({ type: "project", coordinateId: id });
   };
 
   const handleOpenRename = (id: string) => {
-    setRenameCoordinateId(id);
-    setRenameDialogOpen(true);
+    setActiveDialog({ type: "rename", coordinateId: id });
   };
 
   const handleOpenNote = (id: string) => {
-    setNoteCoordinateId(id);
-    setNoteDialogOpen(true);
+    setActiveDialog({ type: "note", coordinateId: id });
   };
 
   const handleOpenFindBearing = (id: string) => {
-    setFindBearingSourceId(id);
-    setFindBearingDialogOpen(true);
+    setActiveDialog({ type: "findBearing", coordinateId: id });
   };
 
   const handleDeleteRequest = (id: string) => {
-    setPendingDeleteId(id);
-    setDeleteConfirmOpen(true);
+    setActiveDialog({ type: "delete", coordinateId: id });
   };
 
   const handleDeleteConfirm = () => {
-    if (pendingDeleteId) {
-      onDelete(pendingDeleteId);
-      setPendingDeleteId(null);
+    if (activeDialog?.type === "delete") {
+      onDelete(activeDialog.coordinateId);
     }
-    setDeleteConfirmOpen(false);
+    setActiveDialog(null);
   };
 
   const handleDeleteCancel = () => {
-    setDeleteConfirmOpen(false);
-    setPendingDeleteId(null);
+    setActiveDialog(null);
   };
 
   const handleGpsAveragingComplete = (payload: {
@@ -328,11 +300,26 @@ export function CoordinateForm({
     setFormName("");
     setFormX("");
     setFormY("");
-    setGpsAveragingDialogOpen(false);
+    setActiveDialog(null);
     onAddDialogClose();
   };
 
   const labels = crsLabelsByCode[formCrsCode] ?? FALLBACK_LABELS;
+
+  const activeTransformCoordinateId =
+    activeDialog?.type === "transform" ? activeDialog.coordinateId : null;
+  const activeProjectCoordinateId =
+    activeDialog?.type === "project" ? activeDialog.coordinateId : null;
+  const activeRenameCoordinateId =
+    activeDialog?.type === "rename" ? activeDialog.coordinateId : null;
+  const activeNoteCoordinateId =
+    activeDialog?.type === "note" ? activeDialog.coordinateId : null;
+  const activeFindBearingSourceId =
+    activeDialog?.type === "findBearing" ? activeDialog.coordinateId : null;
+  const noteCoordinate =
+    activeNoteCoordinateId != null
+      ? coordinates.find((c) => c.id === activeNoteCoordinateId)
+      : undefined;
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
@@ -397,12 +384,12 @@ export function CoordinateForm({
         geoPermissionDenied={geoPermissionDenied}
         onUseCurrentPosition={handleUseCurrentPosition}
         geoLoading={geoLoading}
-        onOpenGpsAveraging={() => setGpsAveragingDialogOpen(true)}
+        onOpenGpsAveraging={() => setActiveDialog({ type: "gpsAveraging" })}
       />
 
       <GpsAveragingDialog
-        open={gpsAveragingDialogOpen}
-        onClose={() => setGpsAveragingDialogOpen(false)}
+        open={activeDialog?.type === "gpsAveraging"}
+        onClose={() => setActiveDialog(null)}
         onComplete={handleGpsAveragingComplete}
         onError={() => {
           setGeoUnavailable(true);
@@ -413,12 +400,11 @@ export function CoordinateForm({
       />
 
       <TransformCrsDialog
-        open={transformDialogOpen}
+        open={activeDialog?.type === "transform"}
         onClose={() => {
-          setTransformDialogOpen(false);
-          setTransformCoordinateId(null);
+          setActiveDialog(null);
         }}
-        coordinateId={transformCoordinateId}
+        coordinateId={activeTransformCoordinateId}
         coordinates={coordinates}
         options={options}
         crsLoading={crsLoading}
@@ -427,40 +413,35 @@ export function CoordinateForm({
       />
 
       <ProjectDialog
-        open={projectDialogOpen}
+        open={activeDialog?.type === "project"}
         onClose={() => {
-          setProjectDialogOpen(false);
-          setProjectCoordinateId(null);
+          setActiveDialog(null);
         }}
-        coordinateId={projectCoordinateId}
+        coordinateId={activeProjectCoordinateId}
         onProject={onProject}
       />
 
       <RenameCoordinateDialog
-        open={renameDialogOpen}
+        open={activeDialog?.type === "rename"}
         onClose={() => {
-          setRenameDialogOpen(false);
-          setRenameCoordinateId(null);
+          setActiveDialog(null);
         }}
-        coordinateId={renameCoordinateId}
+        coordinateId={activeRenameCoordinateId}
         initialName={
-          coordinates.find((c) => c.id === renameCoordinateId)?.name ?? ""
+          coordinates.find((c) => c.id === activeRenameCoordinateId)?.name ?? ""
         }
         onRename={onRename}
       />
 
       <NoteDialog
-        open={noteDialogOpen}
+        open={activeDialog?.type === "note"}
         onClose={() => {
-          setNoteDialogOpen(false);
-          setNoteCoordinateId(null);
+          setActiveDialog(null);
         }}
-        coordinateId={noteCoordinateId}
-        initialNote={
-          coordinates.find((c) => c.id === noteCoordinateId)?.notes ?? ""
-        }
+        entityId={activeNoteCoordinateId}
+        initialNote={noteCoordinate?.notes ?? ""}
         title={
-          (coordinates.find((c) => c.id === noteCoordinateId)?.notes ?? "")
+          noteCoordinate?.notes
             ? "Edit note"
             : "Add note"
         }
@@ -468,18 +449,17 @@ export function CoordinateForm({
       />
 
       <FindBearingDialog
-        open={findBearingDialogOpen}
+        open={activeDialog?.type === "findBearing"}
         onClose={() => {
-          setFindBearingDialogOpen(false);
-          setFindBearingSourceId(null);
+          setActiveDialog(null);
         }}
-        sourceCoordinateId={findBearingSourceId}
+        sourceCoordinateId={activeFindBearingSourceId}
         coordinates={coordinates}
         onConfirm={onFindBearing}
       />
 
       <ConfirmationDialog
-        open={deleteConfirmOpen}
+        open={activeDialog?.type === "delete"}
         onClose={handleDeleteCancel}
         onConfirm={handleDeleteConfirm}
         title="Delete coordinate"

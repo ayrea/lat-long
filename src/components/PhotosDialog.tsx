@@ -19,6 +19,320 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { db } from "../db";
 import type { CoordinatePhoto } from "../types";
 
+interface CameraErrorViewProps {
+  message: string;
+}
+
+function CameraErrorView({ message }: CameraErrorViewProps) {
+  return (
+    <Box
+      sx={{
+        py: 2,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: 1,
+      }}
+    >
+      <Typography color="error">{message}</Typography>
+      <Typography variant="body2" color="text.secondary">
+        Use &quot;Choose from device&quot; to add photos from your gallery or
+        file picker.
+      </Typography>
+    </Box>
+  );
+}
+
+interface CameraViewProps {
+  videoRef: React.RefObject<HTMLVideoElement | null>;
+  preferredFacingMode: "user" | "environment";
+  hasMultipleCameras: boolean;
+  cameraLoading: boolean;
+  onSwitchCamera: () => void;
+  onCapture: () => void;
+  onCloseCamera: () => void;
+}
+
+function CameraView({
+  videoRef,
+  preferredFacingMode,
+  hasMultipleCameras,
+  cameraLoading,
+  onSwitchCamera,
+  onCapture,
+  onCloseCamera,
+}: CameraViewProps) {
+  return (
+    <Box
+      sx={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: 2,
+      }}
+    >
+      <Box
+        sx={{
+          width: "100%",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
+        <Typography variant="body2" color="text.secondary">
+          Camera: {preferredFacingMode === "environment" ? "Back" : "Front"}
+        </Typography>
+        {hasMultipleCameras && (
+          <Button
+            size="small"
+            variant="text"
+            onClick={onSwitchCamera}
+            disabled={cameraLoading}
+          >
+            Switch camera
+          </Button>
+        )}
+      </Box>
+      <Box
+        sx={{
+          width: "100%",
+          maxHeight: 360,
+          bgcolor: "black",
+          borderRadius: 1,
+          overflow: "hidden",
+          position: "relative",
+        }}
+      >
+        <Box
+          component="video"
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted
+          sx={{
+            width: "100%",
+            height: "auto",
+            display: "block",
+          }}
+        />
+        {cameraLoading && (
+          <Box
+            sx={{
+              position: "absolute",
+              inset: 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              bgcolor: "rgba(0,0,0,0.5)",
+            }}
+          >
+            <Typography color="white">Starting camera…</Typography>
+          </Box>
+        )}
+      </Box>
+      <Box sx={{ display: "flex", gap: 1 }}>
+        <Button
+          variant="contained"
+          startIcon={<CameraAlt />}
+          onClick={onCapture}
+          disabled={cameraLoading}
+          aria-label="Capture photo"
+        >
+          Capture
+        </Button>
+        <Button variant="outlined" onClick={onCloseCamera}>
+          Close camera
+        </Button>
+      </Box>
+    </Box>
+  );
+}
+
+interface PhotoGridProps {
+  photos: CoordinatePhoto[];
+  getOrCreateObjectUrl: (photo: CoordinatePhoto) => string;
+  onThumbnailClick: (index: number) => void;
+  onDelete: (photoId: string) => void;
+}
+
+function PhotoGrid({
+  photos,
+  getOrCreateObjectUrl,
+  onThumbnailClick,
+  onDelete,
+}: PhotoGridProps) {
+  if (photos.length === 0) {
+    return (
+      <Box
+        sx={{
+          py: 4,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: 2,
+        }}
+      >
+        <AddPhotoAlternate sx={{ fontSize: 48, color: "text.secondary" }} />
+        <Typography color="text.secondary">Add your first photo</Typography>
+      </Box>
+    );
+  }
+
+  return (
+    <ImageList cols={3} gap={8} sx={{ mt: 0 }}>
+      {photos.map((photo, index) => (
+        <ImageListItem
+          key={photo.id}
+          sx={{
+            cursor: "pointer",
+            overflow: "hidden",
+            borderRadius: 1,
+            position: "relative",
+          }}
+        >
+          <img
+            src={getOrCreateObjectUrl(photo)}
+            alt={photo.fileName}
+            loading="lazy"
+            style={{
+              height: 100,
+              objectFit: "cover",
+              display: "block",
+            }}
+            onClick={() => onThumbnailClick(index)}
+          />
+          <Box
+            className="photo-delete"
+            sx={{
+              position: "absolute",
+              top: 0,
+              right: 0,
+              opacity: 1,
+              "& .MuiIconButton-root": { color: "white" },
+            }}
+          >
+            <IconButton
+              size="small"
+              aria-label="Delete photo"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete(photo.id);
+              }}
+              sx={{
+                color: "white",
+                backgroundColor: "rgba(0,0,0,0.6)",
+                "&:hover": {
+                  backgroundColor: "rgba(0,0,0,0.8)",
+                },
+              }}
+            >
+              <Delete fontSize="small" />
+            </IconButton>
+          </Box>
+        </ImageListItem>
+      ))}
+    </ImageList>
+  );
+}
+
+interface PhotoViewerProps {
+  open: boolean;
+  photo: CoordinatePhoto | null;
+  url: string;
+  hasPrev: boolean;
+  hasNext: boolean;
+  onPrev: () => void;
+  onNext: () => void;
+  onClose: () => void;
+}
+
+function PhotoViewer({
+  open,
+  photo,
+  url,
+  hasPrev,
+  hasNext,
+  onPrev,
+  onNext,
+  onClose,
+}: PhotoViewerProps) {
+  if (!open || photo == null || url === "") {
+    return null;
+  }
+
+  return (
+    <Box
+      onClick={onClose}
+      sx={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 1400,
+        bgcolor: "rgba(0,0,0,0.9)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <IconButton
+        aria-label="Previous photo"
+        onClick={(e) => {
+          e.stopPropagation();
+          onPrev();
+        }}
+        disabled={!hasPrev}
+        sx={{
+          position: "absolute",
+          left: 8,
+          color: "white",
+        }}
+      >
+        <ChevronLeft fontSize="large" />
+      </IconButton>
+      <Box
+        component="img"
+        src={url}
+        alt={photo.fileName}
+        onClick={(e) => e.stopPropagation()}
+        sx={{
+          maxWidth: "90vw",
+          maxHeight: "90vh",
+          objectFit: "contain",
+        }}
+      />
+      <IconButton
+        aria-label="Next photo"
+        onClick={(e) => {
+          e.stopPropagation();
+          onNext();
+        }}
+        disabled={!hasNext}
+        sx={{
+          position: "absolute",
+          right: 8,
+          color: "white",
+        }}
+      >
+        <ChevronRight fontSize="large" />
+      </IconButton>
+      <IconButton
+        aria-label="Close"
+        onClick={(e) => {
+          e.stopPropagation();
+          onClose();
+        }}
+        sx={{
+          position: "absolute",
+          top: 8,
+          right: 8,
+          color: "white",
+        }}
+      >
+        <Close />
+      </IconButton>
+    </Box>
+  );
+}
+
 interface PhotosDialogProps {
   open: boolean;
   onClose: () => void;
@@ -49,6 +363,7 @@ export function PhotosDialog({
   >(null);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
   const urlCacheRef = useRef<Map<string, string>>(new Map());
+  // Dummy state used only to trigger re-renders when urlCacheRef changes.
   const [, setUrlCacheVersion] = useState(0);
 
   const photos = useLiveQuery(
@@ -177,8 +492,7 @@ export function PhotosDialog({
   const hasCameraAPI =
     typeof navigator !== "undefined" &&
     typeof navigator.mediaDevices?.getUserMedia === "function";
-  const hasMultipleCameras =
-    (availableCameras?.filter((d) => d.kind === "videoinput").length ?? 0) > 1;
+  const hasMultipleCameras = (availableCameras?.length ?? 0) > 1;
 
   const handleAddClick = () => fileInputRef.current?.click();
 
@@ -290,174 +604,24 @@ export function PhotosDialog({
         <DialogTitle>Photos — {coordinateName}</DialogTitle>
         <DialogContent>
           {cameraError != null ? (
-            <Box
-              sx={{
-                py: 2,
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: 1,
-              }}
-            >
-              <Typography color="error">{cameraError}</Typography>
-              <Typography variant="body2" color="text.secondary">
-                Use &quot;Choose from device&quot; to add photos from your
-                gallery or file picker.
-              </Typography>
-            </Box>
+            <CameraErrorView message={cameraError} />
           ) : cameraActive ? (
-            <Box
-              sx={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: 2,
-              }}
-            >
-              <Box
-                sx={{
-                  width: "100%",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                }}
-              >
-                <Typography variant="body2" color="text.secondary">
-                  Camera:{" "}
-                  {preferredFacingMode === "environment" ? "Back" : "Front"}
-                </Typography>
-                {hasMultipleCameras && (
-                  <Button
-                    size="small"
-                    variant="text"
-                    onClick={handleSwitchCamera}
-                    disabled={cameraLoading}
-                  >
-                    Switch camera
-                  </Button>
-                )}
-              </Box>
-              <Box
-                sx={{
-                  width: "100%",
-                  maxHeight: 360,
-                  bgcolor: "black",
-                  borderRadius: 1,
-                  overflow: "hidden",
-                  position: "relative",
-                }}
-              >
-                <Box
-                  component="video"
-                  ref={videoRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  sx={{
-                    width: "100%",
-                    height: "auto",
-                    display: "block",
-                  }}
-                />
-                {cameraLoading && (
-                  <Box
-                    sx={{
-                      position: "absolute",
-                      inset: 0,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      bgcolor: "rgba(0,0,0,0.5)",
-                    }}
-                  >
-                    <Typography color="white">Starting camera…</Typography>
-                  </Box>
-                )}
-              </Box>
-              <Box sx={{ display: "flex", gap: 1 }}>
-                <Button
-                  variant="contained"
-                  startIcon={<CameraAlt />}
-                  onClick={handleCaptureClick}
-                  disabled={cameraLoading}
-                  aria-label="Capture photo"
-                >
-                  Capture
-                </Button>
-                <Button variant="outlined" onClick={handleCloseCamera}>
-                  Close camera
-                </Button>
-              </Box>
-            </Box>
-          ) : list.length === 0 ? (
-            <Box
-              sx={{
-                py: 4,
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: 2,
-              }}
-            >
-              <AddPhotoAlternate sx={{ fontSize: 48, color: "text.secondary" }} />
-              <Typography color="text.secondary">
-                Add your first photo
-              </Typography>
-            </Box>
+            <CameraView
+              videoRef={videoRef}
+              preferredFacingMode={preferredFacingMode}
+              hasMultipleCameras={hasMultipleCameras}
+              cameraLoading={cameraLoading}
+              onSwitchCamera={handleSwitchCamera}
+              onCapture={handleCaptureClick}
+              onCloseCamera={handleCloseCamera}
+            />
           ) : (
-            <ImageList cols={3} gap={8} sx={{ mt: 0 }}>
-              {list.map((photo, index) => (
-                <ImageListItem
-                  key={photo.id}
-                  sx={{
-                    cursor: "pointer",
-                    overflow: "hidden",
-                    borderRadius: 1,
-                    position: "relative",
-                  }}
-                >
-                  <img
-                    src={getOrCreateObjectUrl(photo)}
-                    alt={photo.fileName}
-                    loading="lazy"
-                    style={{
-                      height: 100,
-                      objectFit: "cover",
-                      display: "block",
-                    }}
-                    onClick={() => handleThumbnailClick(index)}
-                  />
-                  <Box
-                    className="photo-delete"
-                    sx={{
-                      position: "absolute",
-                      top: 0,
-                      right: 0,
-                      opacity: 1,
-                      "& .MuiIconButton-root": { color: "white" },
-                    }}
-                  >
-                    <IconButton
-                      size="small"
-                      aria-label="Delete photo"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDelete(photo.id);
-                      }}
-                      sx={{
-                        color: "white",
-                        backgroundColor: "rgba(0,0,0,0.6)",
-                        "&:hover": {
-                          backgroundColor: "rgba(0,0,0,0.8)",
-                        },
-                      }}
-                    >
-                      <Delete fontSize="small" />
-                    </IconButton>
-                  </Box>
-                </ImageListItem>
-              ))}
-            </ImageList>
+            <PhotoGrid
+              photos={list}
+              getOrCreateObjectUrl={getOrCreateObjectUrl}
+              onThumbnailClick={handleThumbnailClick}
+              onDelete={handleDelete}
+            />
           )}
           <input
             ref={fileInputRef}
@@ -496,77 +660,18 @@ export function PhotosDialog({
         </DialogActions>
       </Dialog>
 
-      {viewerIndex != null && currentPhoto != null && currentUrl !== "" && (
-        <Box
-          onClick={handleCloseViewer}
-          sx={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 1400,
-            bgcolor: "rgba(0,0,0,0.9)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <IconButton
-            aria-label="Previous photo"
-            onClick={(e) => {
-              e.stopPropagation();
-              handlePrev();
-            }}
-            disabled={viewerIndex <= 0}
-            sx={{
-              position: "absolute",
-              left: 8,
-              color: "white",
-            }}
-          >
-            <ChevronLeft fontSize="large" />
-          </IconButton>
-          <Box
-            component="img"
-            src={currentUrl}
-            alt={currentPhoto.fileName}
-            onClick={(e) => e.stopPropagation()}
-            sx={{
-              maxWidth: "90vw",
-              maxHeight: "90vh",
-              objectFit: "contain",
-            }}
-          />
-          <IconButton
-            aria-label="Next photo"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleNext();
-            }}
-            disabled={viewerIndex >= list.length - 1}
-            sx={{
-              position: "absolute",
-              right: 8,
-              color: "white",
-            }}
-          >
-            <ChevronRight fontSize="large" />
-          </IconButton>
-          <IconButton
-            aria-label="Close"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleCloseViewer();
-            }}
-            sx={{
-              position: "absolute",
-              top: 8,
-              right: 8,
-              color: "white",
-            }}
-          >
-            <Close />
-          </IconButton>
-        </Box>
-      )}
+      <PhotoViewer
+        open={viewerIndex != null && currentPhoto != null && currentUrl !== ""}
+        photo={currentPhoto}
+        url={currentUrl}
+        hasPrev={viewerIndex != null && viewerIndex > 0}
+        hasNext={
+          viewerIndex != null && list.length > 0 && viewerIndex < list.length - 1
+        }
+        onPrev={handlePrev}
+        onNext={handleNext}
+        onClose={handleCloseViewer}
+      />
     </>
   );
 }

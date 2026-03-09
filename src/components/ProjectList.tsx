@@ -9,6 +9,7 @@ import { NoteDialog } from "./NoteDialog";
 import { ProjectCard } from "./ProjectCard";
 
 interface ProjectListProps {
+  projects: ProjectRecord[];
   onSelectProject: (projectId: string) => void;
   onAddProjectClick: () => void;
   onDeleteProject: (projectId: string) => void;
@@ -17,17 +18,13 @@ interface ProjectListProps {
 }
 
 export function ProjectList({
+  projects,
   onSelectProject,
   onAddProjectClick,
   onDeleteProject,
   onExportProject,
   onUpdateProjectNote,
 }: ProjectListProps) {
-  const projects = useLiveQuery(
-    () => db.projects.orderBy("sortOrder").toArray(),
-    [],
-    [] as ProjectRecord[]
-  );
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [pendingDeleteProjectId, setPendingDeleteProjectId] = useState<
     string | null
@@ -121,7 +118,7 @@ export function ProjectList({
           setNoteDialogOpen(false);
           setNoteProjectId(null);
         }}
-        coordinateId={noteProjectId}
+        entityId={noteProjectId}
         initialNote={noteProject?.notes ?? ""}
         title={noteProject?.notes ? "Edit note" : "Add note"}
         onSave={(id, notes) => onUpdateProjectNote(id, notes)}
