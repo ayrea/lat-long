@@ -4,7 +4,7 @@ import DialogActions from "@mui/material/DialogActions";
 import DialogContent from "@mui/material/DialogContent";
 import DialogTitle from "@mui/material/DialogTitle";
 import TextField from "@mui/material/TextField";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 interface AddProjectDialogProps {
   open: boolean;
@@ -19,6 +19,7 @@ export function AddProjectDialog({
 }: AddProjectDialogProps) {
   const [projectName, setProjectName] = useState("");
   const [notes, setNotes] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (open) {
@@ -42,11 +43,11 @@ export function AddProjectDialog({
   };
 
   return (
-    <Dialog open={open} onClose={handleClose}>
+    <Dialog open={open} onClose={handleClose} TransitionProps={{ onEntered: () => inputRef.current?.focus() }}>
       <DialogTitle>New project</DialogTitle>
       <DialogContent>
         <TextField
-          autoFocus
+          inputRef={inputRef}
           margin="dense"
           label="Project name"
           fullWidth
