@@ -118,7 +118,7 @@ export function PhotosDialog({
         });
         streamRef.current = stream;
         video.srcObject = stream;
-        await video.play().catch(() => {});
+        await video.play().catch(() => { });
         setCameraLoading(false);
 
         if (supportsEnumerateDevices) {
@@ -216,16 +216,20 @@ export function PhotosDialog({
       (blob) => {
         if (!blob) return;
         const now = Date.now();
-        void db.photos.add({
-          id: crypto.randomUUID(),
-          coordinateId,
-          projectId,
-          fileName: "camera-capture.jpg",
-          mimeType: "image/jpeg",
-          blob,
-          createdDateTime: new Date().toISOString(),
-          sortOrder: now,
-        });
+        void db.photos
+          .add({
+            id: crypto.randomUUID(),
+            coordinateId,
+            projectId,
+            fileName: "camera-capture.jpg",
+            mimeType: "image/jpeg",
+            blob,
+            createdDateTime: new Date().toISOString(),
+            sortOrder: now,
+          })
+          .then(() => {
+            setCameraActive(false);
+          });
       },
       "image/jpeg",
       0.92,
@@ -410,7 +414,6 @@ export function PhotosDialog({
                     overflow: "hidden",
                     borderRadius: 1,
                     position: "relative",
-                    "&:hover .photo-delete": { opacity: 1 },
                   }}
                 >
                   <img
@@ -430,7 +433,7 @@ export function PhotosDialog({
                       position: "absolute",
                       top: 0,
                       right: 0,
-                      opacity: 0,
+                      opacity: 1,
                       "& .MuiIconButton-root": { color: "white" },
                     }}
                   >
@@ -443,8 +446,9 @@ export function PhotosDialog({
                       }}
                       sx={{
                         color: "white",
+                        backgroundColor: "rgba(0,0,0,0.6)",
                         "&:hover": {
-                          backgroundColor: "rgba(0,0,0,0.6)",
+                          backgroundColor: "rgba(0,0,0,0.8)",
                         },
                       }}
                     >
@@ -470,19 +474,21 @@ export function PhotosDialog({
           {!cameraActive && (
             <>
               <Button
+                variant="outlined"
                 onClick={handleTakePhotoClick}
                 startIcon={<CameraAlt />}
-                aria-label="Take photo with camera"
+                aria-label="Take Photo"
                 disabled={!hasCameraAPI}
               >
-                Take photo
+                Take Photo
               </Button>
               <Button
+                variant="outlined"
                 onClick={handleAddClick}
                 startIcon={<AddPhotoAlternate />}
-                aria-label="Choose from device"
+                aria-label="Choose Photo"
               >
-                Choose from device
+                Choose Photo
               </Button>
             </>
           )}
