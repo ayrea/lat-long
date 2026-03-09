@@ -30,6 +30,20 @@ class AppDatabase extends Dexie {
     this.version(3).stores({
       photos: "id, coordinateId, projectId, sortOrder",
     });
+    this.version(4)
+      .stores({
+        coordinates: "id, sortOrder, projectId, createdDateTime",
+      })
+      .upgrade(async (tx) => {
+        await tx
+          .table("coordinates")
+          .toCollection()
+          .modify((coord: any) => {
+            if (!coord.createdDateTime) {
+              coord.createdDateTime = new Date(coord.sortOrder).toISOString();
+            }
+          });
+      });
   }
 }
 

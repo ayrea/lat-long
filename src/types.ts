@@ -30,6 +30,8 @@ export interface Coordinate {
   cardType: CardType;
   /** Optional user note for this coordinate. */
   notes?: string;
+  /** When the coordinate was created. */
+  createdDateTime: string;
 }
 
 /** A photo attached to a coordinate card. */

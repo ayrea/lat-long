@@ -88,6 +88,7 @@ export function useCoordinates(
         x: payload.x,
         y: payload.y,
         cardType: "manual",
+        createdDateTime: new Date().toISOString(),
         ...(payload.notes != null && payload.notes !== ""
           ? { notes: payload.notes }
           : {}),
@@ -131,6 +132,7 @@ export function useCoordinates(
             x: outX,
             y: outY,
             cardType: "transform",
+            createdDateTime: new Date().toISOString(),
             sortOrder: Date.now(),
             projectId: selectedProjectId,
           });
@@ -169,6 +171,7 @@ export function useCoordinates(
             notes: `Projected from ${source.name}: bearing ${bearing.toFixed(
               1,
             )}°, distance ${distance.toFixed(2)} units`,
+            createdDateTime: new Date().toISOString(),
             sortOrder: Date.now(),
             projectId: selectedProjectId,
           });

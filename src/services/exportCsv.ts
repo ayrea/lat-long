@@ -38,6 +38,7 @@ const CSV_HEADERS: (string | number)[] = [
   "X",
   "Y",
   "Notes",
+  "CoordinateCreateDateTime",
 ];
 
 async function loadCrsNames(
@@ -72,6 +73,9 @@ function buildCoordinateRow(
     coordinate.x,
     coordinate.y,
     coordinate.notes ?? "",
+    coordinate.createdDateTime
+      ? formatLocalDateTime(coordinate.createdDateTime)
+      : "",
   ];
 }
 
@@ -82,8 +86,33 @@ export async function exportAllCoordinatesToCsv(): Promise<void> {
   const codes = new Set(allCoordinates.map((c) => c.crsCode));
   const crsNameByCode = await loadCrsNames(codes);
 
-  const rows = allCoordinates.map((coordinate) =>
-    buildCoordinateRow(coordinate, projectById.get(coordinate.projectId), crsNameByCode),
+  const sortedCoordinates = allCoordinates.slice().sort((a, b) => {
+    const projectA = projectById.get(a.projectId);
+    const projectB = projectById.get(b.projectId);
+    const projectDateA = projectA?.createdDateTime
+      ? new Date(projectA.createdDateTime).getTime()
+      : 0;
+    const projectDateB = projectB?.createdDateTime
+      ? new Date(projectB.createdDateTime).getTime()
+      : 0;
+    if (projectDateA !== projectDateB) {
+      return projectDateA - projectDateB;
+    }
+    const coordDateA = a.createdDateTime
+      ? new Date(a.createdDateTime).getTime()
+      : 0;
+    const coordDateB = b.createdDateTime
+      ? new Date(b.createdDateTime).getTime()
+      : 0;
+    return coordDateA - coordDateB;
+  });
+
+  const rows = sortedCoordinates.map((coordinate) =>
+    buildCoordinateRow(
+      coordinate,
+      projectById.get(coordinate.projectId),
+      crsNameByCode,
+    ),
   );
 
   const csv = buildCsv(CSV_HEADERS, rows);
@@ -102,12 +131,22 @@ export async function exportProjectCoordinatesToCsv(
   const projectCoordinates = await db.coordinates
     .where("projectId")
     .equals(projectId)
-    .sortBy("sortOrder");
+    .toArray();
 
-  const codes = new Set(projectCoordinates.map((c) => c.crsCode));
+  const sortedProjectCoordinates = projectCoordinates.slice().sort((a, b) => {
+    const coordDateA = a.createdDateTime
+      ? new Date(a.createdDateTime).getTime()
+      : 0;
+    const coordDateB = b.createdDateTime
+      ? new Date(b.createdDateTime).getTime()
+      : 0;
+    return coordDateA - coordDateB;
+  });
+
+  const codes = new Set(sortedProjectCoordinates.map((c) => c.crsCode));
   const crsNameByCode = await loadCrsNames(codes);
 
-  const rows = projectCoordinates.map((coordinate) =>
+  const rows = sortedProjectCoordinates.map((coordinate) =>
     buildCoordinateRow(coordinate, proj, crsNameByCode),
   );
 
