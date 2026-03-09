@@ -2,6 +2,20 @@ import { db, type CoordinateRecord, type ProjectRecord } from "../db";
 import { loadCrs } from "../crs";
 import { buildCsv } from "../utils/csv";
 
+function formatLocalDateTime(dateLike: string | Date | null | undefined): string {
+  if (!dateLike) return "";
+  const date = typeof dateLike === "string" ? new Date(dateLike) : dateLike;
+  if (Number.isNaN(date.getTime())) return "";
+  const pad = (value: number): string => value.toString().padStart(2, "0");
+  const year = date.getFullYear();
+  const month = pad(date.getMonth() + 1);
+  const day = pad(date.getDate());
+  const hours = pad(date.getHours());
+  const minutes = pad(date.getMinutes());
+  const seconds = pad(date.getSeconds());
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+}
+
 function downloadCsv(filename: string, csv: string): void {
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
@@ -48,7 +62,9 @@ function buildCoordinateRow(
     coordinate.projectId,
     project?.projectName ?? "",
     project?.notes ?? "",
-    project?.createdDateTime ?? "",
+    project?.createdDateTime
+      ? formatLocalDateTime(project.createdDateTime)
+      : "",
     coordinate.id,
     coordinate.name,
     coordinate.crsCode,
