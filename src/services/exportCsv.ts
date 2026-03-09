@@ -1,6 +1,8 @@
 import { db, type CoordinateRecord, type ProjectRecord } from "../db";
 import { loadCrs } from "../crs";
 import { buildCsv } from "../utils/csv";
+import type { CoordinatePhoto } from "../types";
+import { zipSync } from "fflate";
 
 function formatLocalDateTime(dateLike: string | Date | null | undefined): string {
   if (!dateLike) return "";
@@ -16,8 +18,30 @@ function formatLocalDateTime(dateLike: string | Date | null | undefined): string
   return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 }
 
-function downloadCsv(filename: string, csv: string): void {
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+function getPhotoExtension(mimeType: string): string {
+  const subtype = mimeType.split("/")[1] ?? "bin";
+  if (subtype === "jpeg") return "jpg";
+  return subtype;
+}
+
+async function downloadZip(
+  filename: string,
+  csv: string,
+  photos: CoordinatePhoto[],
+): Promise<void> {
+  const encoder = new TextEncoder();
+  const files: Record<string, Uint8Array> = {
+    "coordinates.csv": encoder.encode(csv),
+  };
+
+  for (const photo of photos) {
+    const ext = getPhotoExtension(photo.mimeType);
+    const buf = await photo.blob.arrayBuffer();
+    files[`photos/${photo.id}.${ext}`] = new Uint8Array(buf);
+  }
+
+  const zipped = zipSync(files);
+  const blob = new Blob([new Uint8Array(zipped)], { type: "application/zip" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -39,6 +63,7 @@ const CSV_HEADERS: (string | number)[] = [
   "Y",
   "Notes",
   "CoordinateCreateDateTime",
+  "PhotoIds",
 ];
 
 async function loadCrsNames(
@@ -58,6 +83,7 @@ function buildCoordinateRow(
   coordinate: CoordinateRecord,
   project: ProjectRecord | undefined,
   crsNameByCode: Record<string, string>,
+  photoIds: string[],
 ): (string | number)[] {
   return [
     coordinate.projectId,
@@ -76,15 +102,27 @@ function buildCoordinateRow(
     coordinate.createdDateTime
       ? formatLocalDateTime(coordinate.createdDateTime)
       : "",
+    photoIds.join(";"),
   ];
 }
 
 export async function exportAllCoordinatesToCsv(): Promise<void> {
   const allProjects = await db.projects.orderBy("sortOrder").toArray();
   const allCoordinates = await db.coordinates.toArray();
+  const allPhotos = await db.photos.toArray();
   const projectById = new Map(allProjects.map((p) => [p.projectId, p]));
   const codes = new Set(allCoordinates.map((c) => c.crsCode));
   const crsNameByCode = await loadCrsNames(codes);
+
+  const photosByCoordinateId = new Map<string, CoordinatePhoto[]>();
+  for (const photo of allPhotos) {
+    const list = photosByCoordinateId.get(photo.coordinateId);
+    if (list) {
+      list.push(photo);
+    } else {
+      photosByCoordinateId.set(photo.coordinateId, [photo]);
+    }
+  }
 
   const sortedCoordinates = allCoordinates.slice().sort((a, b) => {
     const projectA = projectById.get(a.projectId);
@@ -112,14 +150,15 @@ export async function exportAllCoordinatesToCsv(): Promise<void> {
       coordinate,
       projectById.get(coordinate.projectId),
       crsNameByCode,
+      photosByCoordinateId.get(coordinate.id)?.map((p) => p.id) ?? [],
     ),
   );
 
   const csv = buildCsv(CSV_HEADERS, rows);
   const filename = `coordinates-export-${new Date()
     .toISOString()
-    .slice(0, 10)}.csv`;
-  downloadCsv(filename, csv);
+    .slice(0, 10)}.zip`;
+  await downloadZip(filename, csv, allPhotos);
 }
 
 export async function exportProjectCoordinatesToCsv(
@@ -129,6 +168,11 @@ export async function exportProjectCoordinatesToCsv(
   if (!proj) return;
 
   const projectCoordinates = await db.coordinates
+    .where("projectId")
+    .equals(projectId)
+    .toArray();
+
+  const projectPhotos = await db.photos
     .where("projectId")
     .equals(projectId)
     .toArray();
@@ -146,15 +190,30 @@ export async function exportProjectCoordinatesToCsv(
   const codes = new Set(sortedProjectCoordinates.map((c) => c.crsCode));
   const crsNameByCode = await loadCrsNames(codes);
 
+  const photosByCoordinateId = new Map<string, CoordinatePhoto[]>();
+  for (const photo of projectPhotos) {
+    const list = photosByCoordinateId.get(photo.coordinateId);
+    if (list) {
+      list.push(photo);
+    } else {
+      photosByCoordinateId.set(photo.coordinateId, [photo]);
+    }
+  }
+
   const rows = sortedProjectCoordinates.map((coordinate) =>
-    buildCoordinateRow(coordinate, proj, crsNameByCode),
+    buildCoordinateRow(
+      coordinate,
+      proj,
+      crsNameByCode,
+      photosByCoordinateId.get(coordinate.id)?.map((p) => p.id) ?? [],
+    ),
   );
 
   const csv = buildCsv(CSV_HEADERS, rows);
   const safeName = proj.projectName.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 50);
   const filename = `coordinates-export-${safeName}-${new Date()
     .toISOString()
-    .slice(0, 10)}.csv`;
-  downloadCsv(filename, csv);
+    .slice(0, 10)}.zip`;
+  await downloadZip(filename, csv, projectPhotos);
 }
 
