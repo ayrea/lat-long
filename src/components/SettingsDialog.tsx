@@ -116,7 +116,7 @@ export function SettingsDialog({
             </Select>
           </FormControl>
           <TextField
-            label="Warm-up Time (seconds)"
+            label="GPS Averaging Warm-up Time (seconds)"
             type="number"
             size="small"
             fullWidth
