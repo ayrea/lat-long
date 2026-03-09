@@ -41,6 +41,13 @@ export function PhotosDialog({
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [cameraLoading, setCameraLoading] = useState(false);
+  const [preferredFacingMode, setPreferredFacingMode] = useState<
+    "user" | "environment"
+  >("environment");
+  const [availableCameras, setAvailableCameras] = useState<
+    MediaDeviceInfo[] | null
+  >(null);
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
   const urlCacheRef = useRef<Map<string, string>>(new Map());
   const [, setUrlCacheVersion] = useState(0);
 
@@ -59,6 +66,9 @@ export function PhotosDialog({
       setCameraActive(false);
       setCameraError(null);
       setCameraLoading(false);
+      setPreferredFacingMode("environment");
+      setAvailableCameras(null);
+      setSelectedDeviceId(null);
       streamRef.current?.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
       if (videoRef.current) videoRef.current.srcObject = null;
@@ -85,28 +95,60 @@ export function PhotosDialog({
       return;
     }
 
-    navigator.mediaDevices
-      .getUserMedia({ video: true })
-      .then((stream) => {
+    const supportsEnumerateDevices =
+      typeof navigator !== "undefined" &&
+      typeof navigator.mediaDevices?.enumerateDevices === "function";
+
+    const startStream = async () => {
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+      video.srcObject = null;
+
+      const videoConstraints: MediaTrackConstraints = {};
+
+      if (selectedDeviceId) {
+        videoConstraints.deviceId = { exact: selectedDeviceId };
+      } else {
+        videoConstraints.facingMode = preferredFacingMode;
+      }
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: videoConstraints,
+        });
         streamRef.current = stream;
         video.srcObject = stream;
-        video.play().catch(() => {});
+        await video.play().catch(() => {});
         setCameraLoading(false);
-      })
-      .catch((err: unknown) => {
+
+        if (supportsEnumerateDevices) {
+          try {
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const videoInputs = devices.filter(
+              (d) => d.kind === "videoinput",
+            );
+            setAvailableCameras(videoInputs.length > 0 ? videoInputs : null);
+          } catch {
+            setAvailableCameras(null);
+          }
+        }
+      } catch (err: unknown) {
         const message =
           err instanceof Error ? err.message : "Could not access camera.";
         setCameraError(message);
         setCameraActive(false);
         setCameraLoading(false);
-      });
+      }
+    };
+
+    void startStream();
 
     return () => {
       streamRef.current?.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
       video.srcObject = null;
     };
-  }, [open, cameraActive]);
+  }, [open, cameraActive, preferredFacingMode, selectedDeviceId]);
 
   const getOrCreateObjectUrl = useCallback((photo: CoordinatePhoto): string => {
     const cache = urlCacheRef.current;
@@ -135,16 +177,28 @@ export function PhotosDialog({
   const hasCameraAPI =
     typeof navigator !== "undefined" &&
     typeof navigator.mediaDevices?.getUserMedia === "function";
+  const hasMultipleCameras =
+    (availableCameras?.filter((d) => d.kind === "videoinput").length ?? 0) > 1;
 
   const handleAddClick = () => fileInputRef.current?.click();
 
   const handleTakePhotoClick = () => {
     setCameraError(null);
+    setPreferredFacingMode("environment");
+    setSelectedDeviceId(null);
     setCameraActive(true);
   };
 
   const handleCloseCamera = () => {
     setCameraActive(false);
+  };
+
+  const handleSwitchCamera = () => {
+    setCameraError(null);
+    setSelectedDeviceId(null);
+    setPreferredFacingMode((prev) =>
+      prev === "environment" ? "user" : "environment",
+    );
   };
 
   const handleCaptureClick = useCallback(() => {
@@ -256,6 +310,29 @@ export function PhotosDialog({
                 gap: 2,
               }}
             >
+              <Box
+                sx={{
+                  width: "100%",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
+                <Typography variant="body2" color="text.secondary">
+                  Camera:{" "}
+                  {preferredFacingMode === "environment" ? "Back" : "Front"}
+                </Typography>
+                {hasMultipleCameras && (
+                  <Button
+                    size="small"
+                    variant="text"
+                    onClick={handleSwitchCamera}
+                    disabled={cameraLoading}
+                  >
+                    Switch camera
+                  </Button>
+                )}
+              </Box>
               <Box
                 sx={{
                   width: "100%",
