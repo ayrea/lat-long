@@ -7,7 +7,7 @@ import List from "@mui/material/List";
 import ListItemButton from "@mui/material/ListItemButton";
 import Typography from "@mui/material/Typography";
 import { useEffect, useState } from "react";
-import type { Coordinate } from "../types";
+import type { Coordinate } from "../../types";
 
 interface FindBearingDialogProps {
   open: boolean;

@@ -11,10 +11,10 @@ import { useEffect, useState } from "react";
 import {
   DEFAULT_CRS_CODE,
   DEFAULT_CRS_LABEL,
-} from "../crs";
-import type { CRSOption } from "../crs";
-import type { Coordinate } from "../types";
-import { VirtualizedListbox } from "./VirtualizedListbox";
+} from "../../crs";
+import type { CRSOption } from "../../crs";
+import type { Coordinate } from "../../types";
+import { VirtualizedListbox } from "../VirtualizedListbox";
 
 function optionForCode(code: string, options: CRSOption[]): CRSOption {
   const found = options.find((o) => o.code === code);

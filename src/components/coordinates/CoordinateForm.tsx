@@ -12,19 +12,19 @@ import {
   isProjectedCrs,
   getStoredDefaultCrs,
   setStoredDefaultCrs,
-} from "../crs";
-import type { CRSOption } from "../crs";
+} from "../../crs";
+import type { CRSOption } from "../../crs";
 import { AddCoordinateDialog } from "./AddCoordinateDialog";
-import { ConfirmationDialog } from "./ConfirmationDialog";
+import { ConfirmationDialog } from "../ConfirmationDialog";
 import { CoordinateList } from "./CoordinateList";
 import { FindBearingDialog } from "./FindBearingDialog";
 import { GpsAveragingDialog } from "./GpsAveragingDialog";
-import { NoteDialog } from "./NoteDialog";
-import { ProjectDialog } from "./ProjectDialog";
+import { NoteDialog } from "../NoteDialog";
+import { ProjectDialog } from "../projects/ProjectDialog";
 import { RenameCoordinateDialog } from "./RenameCoordinateDialog";
 import { TransformCrsDialog } from "./TransformCrsDialog";
-import type { Coordinate } from "../types";
-import { getCurrentPosition, isGeolocationAvailable } from "../geolocation";
+import type { Coordinate } from "../../types";
+import { getCurrentPosition, isGeolocationAvailable } from "../../geolocation";
 
 const FALLBACK_LABELS = { first: "X", second: "Y" } as const;
 

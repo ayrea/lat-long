@@ -1,11 +1,11 @@
 import Box from "@mui/material/Box";
 import { useTheme } from "@mui/material/styles";
-import { transformCoordinate } from "../transform";
+import { transformCoordinate } from "../../transform";
 import {
   getUtmProj4String,
   getUtmZone,
   WGS84_PROJ4,
-} from "../utm";
+} from "../../utm";
 
 const PADDING = 12;
 const CROSS_HALF = 4;

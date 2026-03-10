@@ -12,7 +12,7 @@ import {
   isGeolocationAvailable,
   type AccuratePositionProgress,
   type AccuratePositionResult,
-} from "../geolocation";
+} from "../../geolocation";
 import { GpsAverageCoordinates } from "./GpsAverageCoordinates";
 
 export interface GpsAveragingResult {

@@ -6,24 +6,11 @@ import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import Typography from "@mui/material/Typography";
 import { useState } from "react";
-import type { ColorMode } from "../theme";
-import type { SettingsValues } from "./SettingsDialog";
-import { AboutDialog } from "./AboutDialog";
-import { SettingsDialog } from "./SettingsDialog";
-
-function MenuIcon() {
-  return (
-    <svg
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="currentColor"
-      aria-hidden="true"
-    >
-      <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z" />
-    </svg>
-  );
-}
+import type { ColorMode } from "../../theme";
+import type { SettingsValues } from "../SettingsDialog";
+import { AboutDialog } from "../AboutDialog";
+import { SettingsDialog } from "../SettingsDialog";
+import MenuIcon from "../MenuIcon";
 
 interface ProjectTopBarProps {
   colorMode: ColorMode;

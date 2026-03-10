@@ -13,21 +13,8 @@ import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { useState } from "react";
-import { AboutDialog } from "./AboutDialog";
-
-function MenuIcon() {
-  return (
-    <svg
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="currentColor"
-      aria-hidden="true"
-    >
-      <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z" />
-    </svg>
-  );
-}
+import { AboutDialog } from "../AboutDialog";
+import MenuIcon from "../MenuIcon";
 
 interface CoordinatesTopBarProps {
   currentProjectName?: string;

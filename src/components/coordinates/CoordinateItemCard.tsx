@@ -12,11 +12,11 @@ import MoreVert from "@mui/icons-material/MoreVert";
 import PhotoCamera from "@mui/icons-material/PhotoCamera";
 import { useLiveQuery } from "dexie-react-hooks";
 import { useState } from "react";
-import { db } from "../db";
-import type { Coordinate, CardType } from "../types";
+import { db } from "../../db";
+import type { Coordinate, CardType } from "../../types";
 import type { AxisLabels } from "./CoordinateForm";
 import { CoordinateCard } from "./CoordinateCard";
-import { PhotosDialog } from "./PhotosDialog";
+import { PhotosDialog } from "../photos/PhotosDialog";
 
 interface CoordinateItemCardProps {
   coordinate: Coordinate;

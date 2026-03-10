@@ -1,6 +1,6 @@
 import Box from "@mui/material/Box";
 import { useEffect, useRef } from "react";
-import type { Coordinate } from "../types";
+import type { Coordinate } from "../../types";
 import type { AxisLabels } from "./CoordinateForm";
 import { CoordinateItemCard } from "./CoordinateItemCard";
 

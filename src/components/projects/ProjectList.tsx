@@ -2,9 +2,9 @@ import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Typography from "@mui/material/Typography";
 import { useState } from "react";
-import { type ProjectRecord } from "../db";
-import { ConfirmationDialog } from "./ConfirmationDialog";
-import { NoteDialog } from "./NoteDialog";
+import { type ProjectRecord } from "../../db";
+import { ConfirmationDialog } from "../ConfirmationDialog";
+import { NoteDialog } from "../NoteDialog";
 import { ProjectCard } from "./ProjectCard";
 
 interface ProjectListProps {

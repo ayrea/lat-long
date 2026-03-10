@@ -8,8 +8,8 @@ import Typography from "@mui/material/Typography";
 import MoreVert from "@mui/icons-material/MoreVert";
 import { useState } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
-import { db } from "../db";
-import type { Project } from "../types";
+import { db } from "../../db";
+import type { Project } from "../../types";
 
 interface ProjectCardProps {
   project: Project;
