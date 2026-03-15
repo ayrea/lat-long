@@ -170,7 +170,7 @@ export function GpsAverageCoordinates({
           ? theme.palette.primary.main
           : theme.palette.text.secondary;
         const hit = 10;
-        const radiusM = 0.1 * r.accuracy;
+        const radiusM = 1.0;
         const radiusSvg = radiusM * bounds.scale;
         return (
           <g
