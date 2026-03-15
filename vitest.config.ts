@@ -7,6 +7,7 @@ export default mergeConfig(
     test: {
       globals: true,
       environment: "node",
+      exclude: ["**/node_modules/**", "**/dist/**", "tests/**"],
     },
   })
 );
