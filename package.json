@@ -30,7 +30,8 @@
     "react-window": "^1.8.10"
   },
   "overrides": {
-    "serialize-javascript": "^7.0.3"
+    "serialize-javascript": "^7.0.3",
+    "flatted": "^3.4.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
@@ -48,6 +49,6 @@
     "typescript-eslint": "^8.46.4",
     "vite": "^7.2.4",
     "vite-plugin-pwa": "^0.19.8",
-    "vitest": "^2.1.8"
+    "vitest": "^4.1.0"
   }
 }
